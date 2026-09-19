@@ -6,10 +6,11 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"
 
 REASON=${1:-scheduled}
-RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:yandex:minecraft-restic}
+export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
+RCLONE_REMOTE=${RCLONE_REMOTE:-$(rclone_remote_name)}
+RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:${RCLONE_REMOTE:-yandex}:minecraft-restic}
 export RESTIC_REPOSITORY
 export RESTIC_PASSWORD_FILE=${RESTIC_PASSWORD_FILE:-/etc/minecraft/secrets/restic_password}
-export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
 HEALTHCHECKS_BACKUP_URL_FILE=${HEALTHCHECKS_BACKUP_URL_FILE:-/etc/minecraft/secrets/healthchecks_backup_url}
 
 send_hc() {
@@ -24,15 +25,19 @@ run_backup() {
   send_hc "/start"
   trap 'send_hc "/fail"' ERR
   log "starting ${REASON} backup"
+  if ! restic snapshots >/dev/null 2>&1; then
+    log "restic repository not initialized yet; initializing"
+    restic init
+  fi
   if systemctl is-active --quiet minecraft.service; then
     "$SCRIPT_DIR/rcon-command.py" "save-all flush" || fail "RCON save-all flush failed"
   fi
+  # World data, whitelist/ban/op lists, and plugin data (AuthMe accounts,
+  # CoreProtect logs) all live under MINECRAFT_SHARED_DIR and are symlinked
+  # into the active release by prepare-release.sh, so backing up this one
+  # tree covers everything that must survive a restore.
   timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic backup \
     "$MINECRAFT_ROOT/shared" \
-    "$MINECRAFT_ROOT/current/whitelist.json" \
-    "$MINECRAFT_ROOT/current/banned-players.json" \
-    "$MINECRAFT_ROOT/current/banned-ips.json" \
-    "$MINECRAFT_ROOT/current/ops.json" \
     --tag "minecraft" \
     --tag "$REASON"
   timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic forget --keep-within-daily 7d --keep-daily 30 --keep-monthly 6 --prune

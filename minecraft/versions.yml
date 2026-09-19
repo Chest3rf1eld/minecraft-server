@@ -10,13 +10,20 @@ plugins:
     version: "5.6.0"
     required: true
     source: "manual"
+    data_dir: "AuthMe"
+    download_url: "https://github.com/AuthMe/AuthMeReloaded/releases/download/5.6.0/AuthMe-5.6.0.jar"
   coreprotect:
     version: "22.4"
     required: true
     source: "manual"
+    data_dir: "CoreProtect"
+    download_url: "https://cdn.modrinth.com/data/Lu3KuzdV/versions/llmrc4cl/CoreProtect-22.4.jar"
   chunky:
     version: "1.4.40"
     required: false
     source: "manual"
+    data_dir: "Chunky"
+    download_url: "https://cdn.modrinth.com/data/fALzjamp/versions/P3y2MXnd/Chunky-Bukkit-1.4.40.jar"
 notes:
   production_gate: "Paper artifact URL was provided by the owner and should be used for smoke tests and release preparation."
+  plugin_gate: "Plugin download URLs were resolved from the projects' own release APIs (GitHub for AuthMe, Modrinth for CoreProtect/Chunky) at the exact pinned versions above; verify before bumping versions."

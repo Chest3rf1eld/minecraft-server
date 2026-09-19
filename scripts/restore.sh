@@ -7,10 +7,11 @@ source "$SCRIPT_DIR/lib.sh"
 
 SNAPSHOT=${1:-}
 CONFIRM=${2:-}
-RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:yandex:minecraft-restic}
+export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
+RCLONE_REMOTE=${RCLONE_REMOTE:-$(rclone_remote_name)}
+RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:${RCLONE_REMOTE:-yandex}:minecraft-restic}
 export RESTIC_REPOSITORY
 export RESTIC_PASSWORD_FILE=${RESTIC_PASSWORD_FILE:-/etc/minecraft/secrets/restic_password}
-export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
 
 [[ -n "$SNAPSHOT" ]] || fail "usage: restore.sh <snapshot> CONFIRM_FULL_RESTORE"
 [[ "$CONFIRM" == "CONFIRM_FULL_RESTORE" ]] || fail "restore requires explicit CONFIRM_FULL_RESTORE"

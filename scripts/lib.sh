@@ -42,6 +42,16 @@ secret_file() {
   printf '/etc/minecraft/secrets/%s' "$1"
 }
 
+# Reads the first remote name defined in an rclone config file (e.g. "yandex-disk"
+# from "[yandex-disk]"). The remote's name is whatever the operator chose when they
+# generated the config, so it must be read rather than assumed.
+rclone_remote_name() {
+  local config=${1:-${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}}
+  if [[ -r "$config" ]]; then
+    sed -n 's/^\[\(.*\)\]$/\1/p' "$config" | head -n1
+  fi
+}
+
 telegram_alert() {
   local level=$1
   local message=$2

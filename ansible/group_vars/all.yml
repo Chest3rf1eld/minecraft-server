@@ -19,5 +19,7 @@ minecraft_enable_command_block: false
 minecraft_pvp: true
 minecraft_disk_warning_percent: 80
 minecraft_disk_critical_percent: 90
-minecraft_backup_remote: yandex:minecraft-restic
-minecraft_restic_repo: rclone:yandex:minecraft-restic
+# The actual remote name comes from whatever section the operator's rclone.conf
+# secret defines (see scripts/lib.sh:rclone_remote_name); these are illustrative only.
+minecraft_backup_remote: "<rclone-remote-name>:minecraft-restic"
+minecraft_restic_repo: "rclone:<rclone-remote-name>:minecraft-restic"

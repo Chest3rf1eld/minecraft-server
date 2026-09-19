@@ -86,7 +86,11 @@ rollback_release() {
 switch_current() {
   local release_id=$1
   if [[ -d "$MINECRAFT_CURRENT_DIR" && ! -L "$MINECRAFT_CURRENT_DIR" ]]; then
-    rmdir "$MINECRAFT_CURRENT_DIR" || fail "current runtime path is not an empty directory"
+    # Provisioning creates "current" as a real directory (with a rendered
+    # server.properties) before the first release exists. Once a release is
+    # ready, that placeholder is superseded entirely by the release's own
+    # copy, so it is safe to remove outright rather than requiring it empty.
+    rm -rf "$MINECRAFT_CURRENT_DIR" || fail "failed to remove existing current runtime directory"
   fi
   ln -sfnT "$MINECRAFT_ROOT/releases/$release_id" "$MINECRAFT_CURRENT_DIR"
 }
