@@ -97,6 +97,15 @@ switch_current() {
 
 run_deploy() {
   ensure_state_dir
+  # minecraft-deploy.timer fires this unconditionally every minute. Without
+  # this check, once a target release exists it would re-run a full backup
+  # and bounce minecraft.service (kicking every connected player) forever,
+  # even long after that release was already deployed successfully.
+  if [[ -f "$MINECRAFT_STATE_DIR/target-release" && -f "$MINECRAFT_STATE_DIR/current-release" ]] \
+    && [[ "$(cat "$MINECRAFT_STATE_DIR/target-release")" == "$(cat "$MINECRAFT_STATE_DIR/current-release")" ]]; then
+    log "target release already deployed; nothing to do"
+    return
+  fi
   set_state PENDING
   wait_for_empty_server
   set_state BACKUP

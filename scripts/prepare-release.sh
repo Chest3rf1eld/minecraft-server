@@ -116,6 +116,9 @@ prepare() {
   fi
   download_plugins
   cp -a minecraft/server.properties "$RELEASE_DIR/server.properties"
+  # Paper refuses to start at all without this; operating this server at
+  # all is an implicit acceptance of the Minecraft EULA already.
+  printf 'eula=true\n' >"$RELEASE_DIR/eula.txt"
   if [[ -r /etc/minecraft/secrets/rcon_password ]]; then
     sed -i "s/^rcon.password=.*/rcon.password=$(cat /etc/minecraft/secrets/rcon_password)/" "$RELEASE_DIR/server.properties"
   fi
