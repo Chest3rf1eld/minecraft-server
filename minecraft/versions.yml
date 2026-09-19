@@ -2,6 +2,7 @@ minecraft:
   version: "1.21.8"
 paper:
   build: 60
+  download_url: "https://fill-data.papermc.io/v1/objects/274bbcb9807ad79a479617ce695a7c0686e652a8d1cabfd0e288d92a3ea29593/paper-26.2-124.jar"
 java:
   major: 21
 plugins:
@@ -18,4 +19,4 @@ plugins:
     required: false
     source: "manual"
 notes:
-  production_gate: "Verify these pinned versions against upstream before first production deploy."
+  production_gate: "Paper artifact URL was provided by the owner and should be used for smoke tests and release preparation."

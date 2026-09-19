@@ -17,6 +17,8 @@ Secrets are not committed to Git. Values are added manually by the owner to GitH
 | `HEALTHCHECKS_VPS_URL` | production environment | Healthchecks.io heartbeat URL for VPS liveness. |
 | `HEALTHCHECKS_BACKUP_URL` | production environment | Healthchecks.io job URL for backup monitoring. |
 
+Current project status: the owner reported that all required secrets have been added to the `production` environment.
+
 ## Runtime Secret Files
 
 Automation renders runtime secret files under `/etc/minecraft/secrets/` with restrictive permissions. Files under that directory must never be copied into the repository.

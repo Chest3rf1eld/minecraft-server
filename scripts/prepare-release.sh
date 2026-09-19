@@ -23,14 +23,36 @@ print(value)
 PY
 }
 
+read_yaml_value_optional() {
+  local expr=$1
+  python3 - "$VERSION_FILE" "$expr" <<'PY'
+import sys
+import yaml
+
+data = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+value = data
+try:
+    for part in sys.argv[2].split("."):
+        value = value[part]
+except (KeyError, TypeError):
+    value = ""
+print(value)
+PY
+}
+
 prepare() {
-  local minecraft_version paper_build
+  local minecraft_version paper_build paper_url
   minecraft_version=$(read_yaml_value minecraft.version)
   paper_build=$(read_yaml_value paper.build)
+  paper_url=$(read_yaml_value_optional paper.download_url)
   mkdir -p "$RELEASE_DIR/plugins" "$RELEASE_DIR/logs"
-  curl -fsSL \
-    "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds/${paper_build}/downloads/paper-${minecraft_version}-${paper_build}.jar" \
-    -o "$RELEASE_DIR/paper.jar"
+  if [[ -n "$paper_url" ]]; then
+    curl -fsSL "$paper_url" -o "$RELEASE_DIR/paper.jar"
+  else
+    curl -fsSL \
+      "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds/${paper_build}/downloads/paper-${minecraft_version}-${paper_build}.jar" \
+      -o "$RELEASE_DIR/paper.jar"
+  fi
   cp -a minecraft/server.properties "$RELEASE_DIR/server.properties"
   if [[ -r /etc/minecraft/secrets/rcon_password ]]; then
     sed -i "s/^rcon.password=.*/rcon.password=$(cat /etc/minecraft/secrets/rcon_password)/" "$RELEASE_DIR/server.properties"

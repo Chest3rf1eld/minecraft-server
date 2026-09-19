@@ -48,4 +48,8 @@ If disk is high, inspect world growth, logs, CoreProtect SQLite size, local rele
 
 ## Version Updates
 
-Paper update PRs may be created automatically. Minecraft version upgrades are manual and require extra caution because world data may migrate. Plugin updates are manual in v1.
+Paper release preparation uses `paper.download_url` from `minecraft/versions.yml` when present. The automated Paper update checker is disabled while a direct artifact URL is configured. Minecraft version upgrades are manual and require extra caution because world data may migrate. Plugin updates are manual in v1.
+
+## OP And Whitelist
+
+Initial OP and whitelist entries are managed manually through Minecraft console/RCON commands after bootstrap. Do not commit generated `ops.json` or `whitelist.json` runtime files to Git.

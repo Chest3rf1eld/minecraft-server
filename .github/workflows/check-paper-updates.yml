@@ -22,6 +22,10 @@ jobs:
           import urllib.request
           import yaml
           data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
+          if data.get('paper', {}).get('download_url'):
+              print('update=false')
+              print('note=direct-url-configured')
+              raise SystemExit(0)
           version = data['minecraft']['version']
           current = int(data['paper']['build'])
           url = f'https://api.papermc.io/v2/projects/paper/versions/{version}/builds'
