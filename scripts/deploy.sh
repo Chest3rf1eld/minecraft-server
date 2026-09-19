@@ -24,6 +24,10 @@ wait_for_empty_server() {
     log "force deploy requested; skipping player wait"
     return
   fi
+  if [[ ! -f "$MINECRAFT_CURRENT_DIR/paper.jar" ]] || ! systemctl is-active --quiet minecraft.service; then
+    log "initial deployment or stopped server; no active players can be present"
+    return
+  fi
   set_state WAITING_FOR_EMPTY_SERVER
   local start now online
   start=$(date +%s)
