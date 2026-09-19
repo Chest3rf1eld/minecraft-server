@@ -6,6 +6,10 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"
 
 REASON=${1:-scheduled}
+# systemd units run without $HOME set, which makes restic warn on every
+# invocation ("unable to locate cache directory") and skip its local
+# metadata cache entirely.
+export HOME=${HOME:-/root}
 export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
 RCLONE_REMOTE=${RCLONE_REMOTE:-$(rclone_remote_name)}
 RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:${RCLONE_REMOTE:-yandex}:minecraft-restic}
@@ -29,6 +33,10 @@ run_backup() {
     log "restic repository not initialized yet; initializing"
     restic init
   fi
+  # A prior backup killed mid-run (VPS reboot, OOM, manual intervention)
+  # leaves its repository lock behind; restic unlock only clears locks
+  # whose owning process is confirmed gone, so this is safe to run every time.
+  restic unlock || true
   if systemctl is-active --quiet minecraft.service; then
     "$SCRIPT_DIR/rcon-command.py" "save-all flush" || fail "RCON save-all flush failed"
   fi

@@ -7,6 +7,7 @@ source "$SCRIPT_DIR/lib.sh"
 
 SNAPSHOT=${1:-}
 CONFIRM=${2:-}
+export HOME=${HOME:-/root}
 export RCLONE_CONFIG=${RCLONE_CONFIG:-/etc/minecraft/secrets/rclone.conf}
 RCLONE_REMOTE=${RCLONE_REMOTE:-$(rclone_remote_name)}
 RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-rclone:${RCLONE_REMOTE:-yandex}:minecraft-restic}
