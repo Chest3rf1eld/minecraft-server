@@ -2,6 +2,8 @@
 - name: Prepare server for restore tooling
   hosts: minecraft_servers
   become: true
+  vars_files:
+    - ../group_vars/all.yml
   roles:
     - backup
     - deployment

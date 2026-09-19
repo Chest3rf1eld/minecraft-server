@@ -2,6 +2,8 @@
 - name: Configure Minecraft runtime
   hosts: minecraft_servers
   become: true
+  vars_files:
+    - ../group_vars/all.yml
   roles:
     - minecraft
     - monitoring
