@@ -26,7 +26,8 @@ jobs:
         working-directory: ansible
         run: ansible-playbook -i inventory/production/hosts.example.yml playbooks/bootstrap.yml --syntax-check
       - name: Ansible lint
-        run: ansible-lint ansible/
+        working-directory: ansible
+        run: ansible-lint .
 
   secret-scan:
     runs-on: ubuntu-latest
