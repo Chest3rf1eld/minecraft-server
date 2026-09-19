@@ -33,9 +33,13 @@ jobs:
                     ansible_user: ${{ secrets.VPS_USER }}
                     ansible_ssh_private_key_file: ~/.ssh/deploy_key
           EOF
+      - name: Verify SSH access
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/deploy_key \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" true
       - name: Run Ansible bootstrap
         working-directory: ansible
-        run: ansible-playbook playbooks/bootstrap.yml
+        run: ansible-playbook --private-key ~/.ssh/deploy_key playbooks/bootstrap.yml
       - name: Upload repository snapshot
         run: |
           tar --exclude='.git' --exclude='.opencode' -czf /tmp/minecraft-infra.tgz .
