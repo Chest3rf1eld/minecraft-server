@@ -2,6 +2,8 @@
 Description=Minecraft Paper Server
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -16,8 +18,6 @@ ExecStart=/usr/bin/java -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -jar paper.jar nogui
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
