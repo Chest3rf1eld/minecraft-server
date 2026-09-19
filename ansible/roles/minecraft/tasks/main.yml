@@ -1,0 +1,77 @@
+---
+- name: Create minecraft group
+  ansible.builtin.group:
+    name: '{{ minecraft_group }}'
+    system: true
+
+- name: Create minecraft user
+  ansible.builtin.user:
+    name: '{{ minecraft_user }}'
+    group: '{{ minecraft_group }}'
+    home: '{{ minecraft_root }}'
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create runtime directories
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: directory
+    owner: '{{ item.owner | default(minecraft_user) }}'
+    group: '{{ item.group | default(minecraft_group) }}'
+    mode: '{{ item.mode | default("0755") }}'
+  loop:
+    - { path: '{{ minecraft_root }}' }
+    - { path: '{{ minecraft_root }}/current' }
+    - { path: '{{ minecraft_root }}/releases' }
+    - { path: '{{ minecraft_root }}/shared' }
+    - { path: '{{ minecraft_root }}/state' }
+    - { path: '{{ minecraft_root }}/shared/plugins' }
+    - { path: '{{ minecraft_bin_dir }}', owner: root, group: root }
+    - { path: '{{ minecraft_config_dir }}', owner: root, group: root }
+    - { path: '{{ minecraft_secret_dir }}', owner: root, group: root, mode: '0700' }
+
+- name: Install Minecraft scripts
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '{{ minecraft_bin_dir }}/{{ item | basename }}'
+    owner: root
+    group: root
+    mode: '0755'
+  with_fileglob:
+    - '{{ playbook_dir }}/../../scripts/*.sh'
+
+- name: Install Minecraft Python helpers
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '{{ minecraft_bin_dir }}/{{ item | basename }}'
+    owner: root
+    group: root
+    mode: '0755'
+  with_fileglob:
+    - '{{ playbook_dir }}/../../scripts/*.py'
+
+- name: Install systemd units
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/etc/systemd/system/{{ item | basename }}'
+    owner: root
+    group: root
+    mode: '0644'
+  with_fileglob:
+    - '{{ playbook_dir }}/../../systemd/*'
+  notify: Reload systemd
+
+- name: Render server.properties
+  ansible.builtin.template:
+    src: server.properties.j2
+    dest: '{{ minecraft_root }}/current/server.properties'
+    owner: '{{ minecraft_user }}'
+    group: '{{ minecraft_group }}'
+    mode: '0644'
+
+- name: Enable Minecraft service
+  ansible.builtin.systemd:
+    name: minecraft.service
+    enabled: true
+    daemon_reload: true

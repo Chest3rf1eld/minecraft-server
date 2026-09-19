@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for pending Minecraft deployments
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

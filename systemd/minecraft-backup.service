@@ -1,0 +1,7 @@
+[Unit]
+Description=Minecraft scheduled backup
+After=network-online.target minecraft.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/minecraft/bin/backup.sh scheduled

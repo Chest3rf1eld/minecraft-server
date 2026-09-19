@@ -1,0 +1,14 @@
+---
+- name: Enable healthcheck timer
+  ansible.builtin.systemd:
+    name: minecraft-healthcheck.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Enable VPS heartbeat timer
+  ansible.builtin.systemd:
+    name: minecraft-vps-heartbeat.timer
+    enabled: true
+    state: started
+    daemon_reload: true

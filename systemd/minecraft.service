@@ -1,0 +1,27 @@
+[Unit]
+Description=Minecraft Paper Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=minecraft
+Group=minecraft
+WorkingDirectory=/srv/minecraft/current
+Environment=MINECRAFT_ROOT=/srv/minecraft
+Environment=JAVA_XMS=2G
+Environment=JAVA_XMX=3G
+EnvironmentFile=-/etc/minecraft/minecraft.env
+ExecStart=/usr/bin/java -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -jar paper.jar nogui
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/srv/minecraft /etc/minecraft
+
+[Install]
+WantedBy=multi-user.target

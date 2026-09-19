@@ -1,0 +1,7 @@
+all:
+  children:
+    minecraft_servers:
+      hosts:
+        minecraft-prod:
+          ansible_host: minecraft.nikchester.ru
+          ansible_user: debian

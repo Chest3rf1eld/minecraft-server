@@ -1,0 +1,21 @@
+minecraft:
+  version: "1.21.8"
+paper:
+  build: 60
+java:
+  major: 21
+plugins:
+  authme_reloaded:
+    version: "5.6.0"
+    required: true
+    source: "manual"
+  coreprotect:
+    version: "22.4"
+    required: true
+    source: "manual"
+  chunky:
+    version: "1.4.40"
+    required: false
+    source: "manual"
+notes:
+  production_gate: "Verify these pinned versions against upstream before first production deploy."

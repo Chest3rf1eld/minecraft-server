@@ -1,0 +1,39 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - jq
+      - python3
+      - python3-yaml
+      - python3-venv
+      - sqlite3
+      - unzip
+      - ufw
+    state: present
+    update_cache: true
+
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin\s+'
+    line: PermitRootLogin no
+    validate: sshd -t -f %s
+  notify: Restart ssh
+
+- name: Disable password SSH authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication\s+'
+    line: PasswordAuthentication no
+    validate: sshd -t -f %s
+  notify: Restart ssh
+
+- name: Ensure pubkey SSH authentication is enabled
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PubkeyAuthentication\s+'
+    line: PubkeyAuthentication yes
+    validate: sshd -t -f %s
+  notify: Restart ssh

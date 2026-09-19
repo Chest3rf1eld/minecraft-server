@@ -1,0 +1,29 @@
+name: Restore Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: restic snapshot ID or timestamp
+        required: true
+      confirm:
+        description: Type CONFIRM_FULL_RESTORE
+        required: true
+
+jobs:
+  restore:
+    if: inputs.confirm == 'CONFIRM_FULL_RESTORE'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+      - name: Full restore
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "sudo /opt/minecraft/bin/restore.sh '${{ inputs.snapshot }}' CONFIRM_FULL_RESTORE"

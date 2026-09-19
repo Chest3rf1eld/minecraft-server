@@ -1,0 +1,15 @@
+server-port={{ minecraft_server_port }}
+max-players={{ minecraft_max_players }}
+online-mode=false
+white-list=true
+enforce-whitelist=true
+enable-rcon=true
+rcon.port={{ minecraft_rcon_port }}
+rcon.password=rendered-by-deploy
+enable-command-block={{ minecraft_enable_command_block | lower }}
+gamemode={{ minecraft_gamemode }}
+difficulty={{ minecraft_difficulty }}
+pvp={{ minecraft_pvp | lower }}
+view-distance={{ minecraft_view_distance }}
+simulation-distance={{ minecraft_simulation_distance }}
+motd=nikchester private Minecraft server

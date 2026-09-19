@@ -1,0 +1,7 @@
+[Unit]
+Description=Minecraft health check
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/minecraft/bin/healthcheck.sh

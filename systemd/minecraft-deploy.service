@@ -1,0 +1,7 @@
+[Unit]
+Description=Minecraft pending deployment controller
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/minecraft/bin/deploy.sh

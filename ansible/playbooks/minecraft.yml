@@ -1,0 +1,8 @@
+---
+- name: Configure Minecraft runtime
+  hosts: minecraft_servers
+  become: true
+  roles:
+    - minecraft
+    - monitoring
+    - deployment

@@ -1,0 +1,12 @@
+---
+- name: Provision Minecraft server host
+  hosts: minecraft_servers
+  become: true
+  roles:
+    - base
+    - java
+    - firewall
+    - minecraft
+    - backup
+    - monitoring
+    - deployment

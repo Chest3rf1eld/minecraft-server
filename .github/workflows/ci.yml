@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repository validation
+        run: python3 scripts/validate-repository.py
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck python3-pip
+          python3 -m pip install --user ansible ansible-lint yamllint
+      - name: YAML validation
+        run: yamllint .
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh
+      - name: Ansible syntax
+        working-directory: ansible
+        run: ansible-playbook -i inventory/production/hosts.example.yml playbooks/bootstrap.yml --syntax-check
+      - name: Ansible lint
+        run: ansible-lint ansible/
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+  paper-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read versions
+        id: versions
+        run: |
+          python3 -m pip install --user pyyaml
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import yaml
+          data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
+          print(f"minecraft={data['minecraft']['version']}")
+          print(f"paper_build={data['paper']['build']}")
+          print(f"java={data['java']['major']}")
+          PY
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.versions.outputs.java }}
+      - name: Download Paper
+        run: |
+          mkdir -p /tmp/paper-smoke
+          curl -fsSL \
+            "https://api.papermc.io/v2/projects/paper/versions/${{ steps.versions.outputs.minecraft }}/builds/${{ steps.versions.outputs.paper_build }}/downloads/paper-${{ steps.versions.outputs.minecraft }}-${{ steps.versions.outputs.paper_build }}.jar" \
+            -o /tmp/paper-smoke/paper.jar
+      - name: Start Paper smoke server
+        run: |
+          cp minecraft/server.properties /tmp/paper-smoke/server.properties
+          sed -i 's/^enable-rcon=.*/enable-rcon=false/' /tmp/paper-smoke/server.properties
+          echo 'eula=true' > /tmp/paper-smoke/eula.txt
+          cd /tmp/paper-smoke
+          java -Xms512M -Xmx1G -jar paper.jar nogui >paper.log 2>&1 &
+          echo $! > paper.pid
+          for i in $(seq 1 90); do
+            if grep -q 'Done' paper.log; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat paper.pid)" 2>/dev/null; then
+              cat paper.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat paper.log
+          exit 1
+      - name: Stop Paper
+        if: always()
+        run: |
+          if [ -f /tmp/paper-smoke/paper.pid ]; then
+            kill "$(cat /tmp/paper-smoke/paper.pid)" || true
+          fi

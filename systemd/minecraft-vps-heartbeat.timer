@@ -1,0 +1,11 @@
+[Unit]
+Description=Send Minecraft VPS heartbeat to Healthchecks.io
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,54 @@
+# Local tool state
+.opencode/
+
+# Secrets and local overrides
+.env
+*.env
+*.key
+*.pem
+*.pub.local
+secrets/
+ansible/inventory/production/hosts.yml
+ansible/inventory/production/host_vars/
+ansible/inventory/production/group_vars/secrets.yml
+
+# Minecraft runtime data
+world/
+world_nether/
+world_the_end/
+logs/
+plugins/*
+!plugins/README.md
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+banned-ips.json
+banned-players.json
+ops.json
+usercache.json
+whitelist.json
+
+# Backups and release artifacts
+backups/
+*.tar
+*.tar.gz
+*.zip
+*.jar
+releases/
+
+# Ansible/Python
+*.retry
+.ansible/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

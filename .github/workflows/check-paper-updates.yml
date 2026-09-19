@@ -1,0 +1,51 @@
+name: Check Paper Updates
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Paper builds
+        id: paper
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+          import yaml
+          data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
+          version = data['minecraft']['version']
+          current = int(data['paper']['build'])
+          url = f'https://api.papermc.io/v2/projects/paper/versions/{version}/builds'
+          builds = json.load(urllib.request.urlopen(url, timeout=30))['builds']
+          latest = max(int(item['build']) for item in builds)
+          print(f'current={current}')
+          print(f'latest={latest}')
+          print(f'update={str(latest > current).lower()}')
+          PY
+      - name: Update metadata
+        if: steps.paper.outputs.update == 'true'
+        run: |
+          python3 - <<'PY'
+          import yaml
+          data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
+          data['paper']['build'] = int('${{ steps.paper.outputs.latest }}')
+          with open('minecraft/versions.yml', 'w', encoding='utf-8') as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+          PY
+      - name: Create pull request
+        if: steps.paper.outputs.update == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: automation/paper-build-update
+          title: Update Paper build to ${{ steps.paper.outputs.latest }}
+          commit-message: Update Paper build to ${{ steps.paper.outputs.latest }}
+          body: Automated Paper build update for the pinned Minecraft version. CI must pass and owner must review before merge/deploy.

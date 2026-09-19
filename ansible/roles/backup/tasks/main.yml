@@ -1,0 +1,15 @@
+---
+- name: Install backup packages
+  ansible.builtin.apt:
+    name:
+      - restic
+      - rclone
+    state: present
+    update_cache: true
+
+- name: Enable backup timer
+  ansible.builtin.systemd:
+    name: minecraft-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

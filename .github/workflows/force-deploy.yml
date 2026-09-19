@@ -1,0 +1,30 @@
+name: Force Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type FORCE_DEPLOY to bypass player wait
+        required: true
+
+jobs:
+  force-deploy:
+    if: inputs.confirm == 'FORCE_DEPLOY'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+      - name: Force deployment
+        run: |
+          tar --exclude='.git' --exclude='.opencode' -czf /tmp/minecraft-infra.tgz .
+          scp -i ~/.ssh/deploy_key /tmp/minecraft-infra.tgz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/minecraft-infra.tgz"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'sudo mkdir -p /srv/minecraft/repo && sudo tar -xzf /tmp/minecraft-infra.tgz -C /srv/minecraft/repo && sudo chown -R root:root /srv/minecraft/repo'
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'cd /srv/minecraft/repo && sudo /opt/minecraft/bin/prepare-release.sh && sudo FORCE_DEPLOY=true /opt/minecraft/bin/deploy.sh'

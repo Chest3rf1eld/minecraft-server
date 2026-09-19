@@ -1,0 +1,7 @@
+[Unit]
+Description=Minecraft VPS external heartbeat
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/minecraft/bin/vps-heartbeat.sh
