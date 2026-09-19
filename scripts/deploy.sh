@@ -55,13 +55,35 @@ wait_for_empty_server() {
 }
 
 verify_release() {
+  # Called as `if verify_release; then ...`, which suspends set -e for
+  # everything inside this function -- a command failing here does NOT
+  # abort the function the way it would anywhere else in this script. Every
+  # check below must therefore test its own result and `return 1` itself;
+  # relying on set -e silently turns this into a no-op that always reports
+  # success (which is exactly what happened: a status-ping timeout was
+  # swallowed and the deploy was recorded as SUCCESS anyway).
   set_state VERIFYING
-  systemctl start minecraft.service
-  sleep 20
-  systemctl is-active --quiet minecraft.service
-  "$SCRIPT_DIR/minecraft-status.py" 127.0.0.1 25565 >/tmp/minecraft-deploy-status.json
+  systemctl start minecraft.service || return 1
+
+  # First boot can take well over the old fixed 20s sleep (world
+  # generation, plugin setup); poll instead of guessing a delay.
+  local attempt
+  for attempt in $(seq 1 "${VERIFY_PING_ATTEMPTS:-30}"); do
+    if "$SCRIPT_DIR/minecraft-status.py" 127.0.0.1 25565 >/tmp/minecraft-deploy-status.json 2>/dev/null; then
+      break
+    fi
+    if [[ "$attempt" -eq "${VERIFY_PING_ATTEMPTS:-30}" ]]; then
+      log "minecraft protocol ping did not respond in time"
+      return 1
+    fi
+    sleep 2
+  done
+
+  systemctl is-active --quiet minecraft.service || return 1
+
   if ! grep -Riq 'AuthMe' "$MINECRAFT_CURRENT_DIR/logs" 2>/dev/null; then
-    fail "AuthMe load evidence was not found in logs"
+    log "AuthMe load evidence was not found in logs"
+    return 1
   fi
 }
 
