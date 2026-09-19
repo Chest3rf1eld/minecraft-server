@@ -71,7 +71,7 @@ rollback_release() {
   previous=$(cat "$MINECRAFT_STATE_DIR/previous-release" 2>/dev/null || true)
   [[ -n "$previous" && -d "$MINECRAFT_ROOT/releases/$previous" ]] || fail "no previous release available"
   systemctl stop minecraft.service || true
-    ln -sfnT "$MINECRAFT_ROOT/releases/$previous" "$MINECRAFT_CURRENT_DIR"
+  switch_current "$previous"
   set_state VERIFY_ROLLBACK
   if verify_release; then
     set_state ROLLED_BACK
@@ -81,6 +81,14 @@ rollback_release() {
     telegram_alert critical "deployment rollback failed"
     exit 1
   fi
+}
+
+switch_current() {
+  local release_id=$1
+  if [[ -d "$MINECRAFT_CURRENT_DIR" && ! -L "$MINECRAFT_CURRENT_DIR" ]]; then
+    rmdir "$MINECRAFT_CURRENT_DIR" || fail "current runtime path is not an empty directory"
+  fi
+  ln -sfnT "$MINECRAFT_ROOT/releases/$release_id" "$MINECRAFT_CURRENT_DIR"
 }
 
 run_deploy() {
@@ -96,7 +104,7 @@ run_deploy() {
     target=$(cat "$MINECRAFT_STATE_DIR/target-release")
     [[ -d "$MINECRAFT_ROOT/releases/$target" ]] || fail "target release missing: $target"
     readlink -f "$MINECRAFT_CURRENT_DIR" | xargs -r basename >"$MINECRAFT_STATE_DIR/previous-release"
-    ln -sfnT "$MINECRAFT_ROOT/releases/$target" "$MINECRAFT_CURRENT_DIR"
+    switch_current "$target"
   fi
   if verify_release; then
     set_state SUCCESS

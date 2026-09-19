@@ -27,7 +27,7 @@ run_backup() {
   if systemctl is-active --quiet minecraft.service; then
     "$SCRIPT_DIR/rcon-command.py" "save-all flush" || fail "RCON save-all flush failed"
   fi
-  restic backup \
+  timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic backup \
     "$MINECRAFT_ROOT/shared" \
     "$MINECRAFT_ROOT/current/whitelist.json" \
     "$MINECRAFT_ROOT/current/banned-players.json" \
@@ -35,7 +35,7 @@ run_backup() {
     "$MINECRAFT_ROOT/current/ops.json" \
     --tag "minecraft" \
     --tag "$REASON"
-  restic forget --keep-within-daily 7d --keep-daily 30 --keep-monthly 6 --prune
+  timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic forget --keep-within-daily 7d --keep-daily 30 --keep-monthly 6 --prune
   touch "$MINECRAFT_STATE_DIR/last-backup-success"
   send_hc
   trap - ERR
