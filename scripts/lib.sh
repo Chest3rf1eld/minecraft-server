@@ -25,8 +25,17 @@ ensure_state_dir() {
 with_global_lock() {
   ensure_state_dir
   local timeout_seconds=${LOCK_TIMEOUT_SECONDS:-900}
-  local command=("$@")
-  flock -w "$timeout_seconds" "$MINECRAFT_LOCK_FILE" "${command[@]}"
+  exec 9>"$MINECRAFT_LOCK_FILE"
+  if ! flock -w "$timeout_seconds" 9; then
+    log "could not acquire global operation lock"
+    exec 9>&-
+    return 1
+  fi
+  "$@"
+  local status=$?
+  flock -u 9
+  exec 9>&-
+  return "$status"
 }
 
 secret_file() {
