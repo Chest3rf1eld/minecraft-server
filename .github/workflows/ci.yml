@@ -21,7 +21,7 @@ jobs:
       - name: YAML validation
         run: yamllint .
       - name: Shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck -x scripts/*.sh
       - name: Ansible syntax
         working-directory: ansible
         run: ansible-playbook -i inventory/production/hosts.example.yml playbooks/bootstrap.yml --syntax-check

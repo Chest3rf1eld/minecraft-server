@@ -28,11 +28,11 @@ wait_for_empty_server() {
   local start now online
   start=$(date +%s)
   while true; do
-    online=$($SCRIPT_DIR/player-count.sh 127.0.0.1 25565 || echo 999)
+    online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
     if [[ "$online" -eq 0 ]]; then
       set_state EMPTY_GRACE_PERIOD
       sleep "$GRACE_SECONDS"
-      online=$($SCRIPT_DIR/player-count.sh 127.0.0.1 25565 || echo 999)
+      online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
       if [[ "$online" -eq 0 ]]; then
         return
       fi
