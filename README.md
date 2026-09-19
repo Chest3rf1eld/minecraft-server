@@ -4,6 +4,17 @@ Production-like infrastructure for a small private Minecraft server at `minecraf
 
 The project intentionally keeps runtime operations simple: one Debian 13 VPS, Paper as a native Java process under systemd, Ansible for provisioning, GitHub Actions for validation/deployment, restic+rclone backups to Yandex Disk, and lightweight Telegram/Healthchecks.io monitoring.
 
+## Status
+
+The server is live and deployed at `minecraft.nikchester.ru:25565`. The full pipeline (provision → deploy → backup → verify) has run end-to-end successfully on production:
+
+- Paper (pinned build, see `minecraft/versions.yml`) running under `minecraft.service`, AuthMeReloaded and CoreProtect loaded.
+- RCON bound locally but not exposed (only 22/tcp and 25565/tcp are open in the firewall).
+- restic backups to Yandex Disk succeed, verified via `restic snapshots`.
+- Telegram and Healthchecks.io alerts confirmed delivering (not just non-error exits).
+
+Known follow-ups (tracked as GitHub issues, not blocking): backup failures outside a deploy only ping Healthchecks.io, not Telegram (#6); old release directories under `/srv/minecraft/releases` are never pruned (#7); a manual `restore.sh` run against a real snapshot is still pending owner sign-off (#8).
+
 ## Documents
 
 - `SPEC.md` - implementation contract and requirements.
@@ -26,12 +37,14 @@ The project intentionally keeps runtime operations simple: one Debian 13 VPS, Pa
 
 ## Bootstrap Summary
 
+Already done for the current VPS (see Status above); kept here as the procedure for re-provisioning from scratch, e.g. after a full VPS loss (`docs/DISASTER_RECOVERY.md`).
+
 1. Create or confirm a Debian 13 minimal VPS.
 2. Point `minecraft.nikchester.ru` to the VPS IP.
-3. Add required GitHub Secrets and configure the `production` environment.
+3. Add required GitHub Secrets and configure the `production` environment (`docs/SECRETS.md`).
 4. Fill `ansible/inventory/production/hosts.yml` from `ansible/inventory/production/hosts.example.yml`.
-5. Run Ansible bootstrap.
-6. Verify Paper, AuthMe, whitelist, CoreProtect, backups, and monitoring.
+5. Run Ansible bootstrap (`gh workflow run provision.yml`).
+6. Run a deploy (`gh workflow run deploy.yml`) and verify Paper, AuthMe, CoreProtect, backups, and monitoring per the Status checklist above.
 
 See `docs/OPERATIONS.md` and `docs/DISASTER_RECOVERY.md` for detailed commands.
 
