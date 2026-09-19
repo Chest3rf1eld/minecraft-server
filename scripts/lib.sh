@@ -23,6 +23,18 @@ ensure_state_dir() {
 }
 
 with_global_lock() {
+  # deploy.sh runs its whole flow under this lock and, partway through, execs
+  # backup.sh as a separate process, which independently wraps itself in the
+  # same lock. That second acquisition is a brand new process/fd, so flock
+  # cannot recognize it as the same holder and blocks until the parent's own
+  # timeout — a guaranteed deadlock for the full LOCK_TIMEOUT_SECONDS. Flag
+  # that the lock is already held via the environment (which is inherited by
+  # any child process, unlike a shell variable) so a nested call just runs
+  # directly instead of re-acquiring.
+  if [[ "${MINECRAFT_LOCK_HELD:-}" == "1" ]]; then
+    "$@"
+    return $?
+  fi
   ensure_state_dir
   local timeout_seconds=${LOCK_TIMEOUT_SECONDS:-900}
   exec 9>"$MINECRAFT_LOCK_FILE"
@@ -31,7 +43,7 @@ with_global_lock() {
     exec 9>&-
     return 1
   fi
-  "$@"
+  MINECRAFT_LOCK_HELD=1 "$@"
   local status=$?
   flock -u 9
   exec 9>&-
