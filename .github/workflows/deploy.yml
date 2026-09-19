@@ -12,6 +12,7 @@ jobs:
       - name: Install SSH key
         env:
           DEPLOY_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
           printf '%b\n' "$DEPLOY_KEY" | tr -d '\r' > ~/.ssh/deploy_key
@@ -22,28 +23,46 @@ jobs:
             *) echo "VPS_SSH_KEY is not an OpenSSH/PEM private key (first line: ${first_line:0:32})"; exit 1 ;;
           esac
           ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
       - name: Request deployment
+        env:
+          # Every secret below is passed through the process environment and
+          # referenced as "$VAR" in the script, never interpolated directly
+          # as ${{ secrets.X }} inside a quoted shell string. GitHub Actions
+          # substitutes ${{ }} expressions as raw text before bash ever sees
+          # the script, so a secret containing a double quote (e.g. the JSON
+          # in YANDEX_RCLONE_CONFIG) would terminate the surrounding "..."
+          # early and corrupt everything after it — which is exactly what
+          # broke the rclone token previously.
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          RCON_PASSWORD: ${{ secrets.RCON_PASSWORD }}
+          RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HEALTHCHECKS_BACKUP_URL: ${{ secrets.HEALTHCHECKS_BACKUP_URL }}
+          HEALTHCHECKS_VPS_URL: ${{ secrets.HEALTHCHECKS_VPS_URL }}
+          YANDEX_RCLONE_CONFIG: ${{ secrets.YANDEX_RCLONE_CONFIG }}
         run: |
           tar --exclude='.git' --exclude='.opencode' -czf /tmp/minecraft-infra.tgz .
-          scp -i ~/.ssh/deploy_key /tmp/minecraft-infra.tgz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/minecraft-infra.tgz"
-          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          scp -i ~/.ssh/deploy_key /tmp/minecraft-infra.tgz "$VPS_USER@$VPS_HOST:/tmp/minecraft-infra.tgz"
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo mkdir -p /srv/minecraft/repo && sudo tar -xzf /tmp/minecraft-infra.tgz -C /srv/minecraft/repo && sudo chown -R root:root /srv/minecraft/repo'
-          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo install -d -m 0700 /etc/minecraft/secrets'
-          printf '%s' "${{ secrets.RCON_PASSWORD }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$RCON_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/rcon_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/rcon_password'
-          printf '%s' "${{ secrets.RESTIC_PASSWORD }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$RESTIC_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/restic_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/restic_password'
-          printf '%s' "${{ secrets.TELEGRAM_BOT_TOKEN }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$TELEGRAM_BOT_TOKEN" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/telegram_bot_token >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_bot_token'
-          printf '%s' "${{ secrets.TELEGRAM_CHAT_ID }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$TELEGRAM_CHAT_ID" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/telegram_chat_id >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_chat_id'
-          printf '%s' "${{ secrets.HEALTHCHECKS_BACKUP_URL }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$HEALTHCHECKS_BACKUP_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/healthchecks_backup_url >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/healthchecks_backup_url'
-          printf '%s' "${{ secrets.HEALTHCHECKS_VPS_URL }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$HEALTHCHECKS_VPS_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/healthchecks_vps_url >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/healthchecks_vps_url'
-          printf '%s' "${{ secrets.YANDEX_RCLONE_CONFIG }}" | ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          printf '%s' "$YANDEX_RCLONE_CONFIG" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/rclone.conf >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/rclone.conf'
-          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo systemctl stop minecraft-deploy.service || true; sudo cp /srv/minecraft/repo/scripts/*.sh /opt/minecraft/bin/ && sudo cp /srv/minecraft/repo/scripts/*.py /opt/minecraft/bin/ && sudo chmod 0755 /opt/minecraft/bin/* && sudo cp /srv/minecraft/repo/systemd/* /etc/systemd/system/ && sudo systemctl daemon-reload && cd /srv/minecraft/repo && sudo /opt/minecraft/bin/prepare-release.sh && sudo systemctl start --no-block minecraft-deploy.service && for i in $(seq 1 120); do state=$(sudo systemctl show -p ActiveState --value minecraft-deploy.service); depstate=$(sudo cat /srv/minecraft/state/deploy-state 2>/dev/null || true); if [ "$state" = "inactive" ] && [ "$depstate" = "SUCCESS" ]; then sudo systemctl status minecraft-deploy.service --no-pager; exit 0; fi; if [ "$state" = "failed" ]; then sudo journalctl -u minecraft-deploy.service -n 200 --no-pager; exit 1; fi; sleep 5; done; sudo journalctl -u minecraft-deploy.service -n 100 --no-pager; exit 1'
