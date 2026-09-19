@@ -48,7 +48,7 @@ If disk is high, inspect world growth, logs, CoreProtect SQLite size, local rele
 
 ## Version Updates
 
-Paper release preparation uses `paper.download_url` from `minecraft/versions.yml` when present. The automated Paper update checker is disabled while a direct artifact URL is configured. Minecraft version upgrades are manual and require extra caution because world data may migrate. Plugin updates are manual in v1.
+Paper release preparation uses `paper.download_url` from `minecraft/versions.yml` when present. The current Paper artifact requires Java 25 or newer, so Java 25 is the pinned runtime target. The automated Paper update checker is disabled while a direct artifact URL is configured. Minecraft version upgrades are manual and require extra caution because world data may migrate. Plugin updates are manual in v1.
 
 ## OP And Whitelist
 

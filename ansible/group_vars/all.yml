@@ -9,6 +9,7 @@ minecraft_rcon_port: 25575
 minecraft_server_port: 25565
 minecraft_java_xms: 2G
 minecraft_java_xmx: 3G
+minecraft_java_major: 25
 minecraft_max_players: 5
 minecraft_view_distance: 8
 minecraft_simulation_distance: 6
