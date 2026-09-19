@@ -8,4 +8,7 @@ if [[ ! -r "$URL_FILE" ]]; then
   exit 1
 fi
 
-curl -fsS "$(<"$URL_FILE")" >/dev/null
+# Strip stray whitespace (e.g. a leading space from a copy-paste into the
+# GitHub secret) -- a URL should never legitimately contain any, and curl
+# rejects one outright ("Malformed input to a URL function") otherwise.
+curl -fsS "$(tr -d '[:space:]' <"$URL_FILE")" >/dev/null

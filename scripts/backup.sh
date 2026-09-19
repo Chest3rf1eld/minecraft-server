@@ -20,7 +20,9 @@ HEALTHCHECKS_BACKUP_URL_FILE=${HEALTHCHECKS_BACKUP_URL_FILE:-/etc/minecraft/secr
 send_hc() {
   local suffix=${1:-}
   if [[ -r "$HEALTHCHECKS_BACKUP_URL_FILE" ]]; then
-    curl -fsS "$(<"$HEALTHCHECKS_BACKUP_URL_FILE")${suffix}" >/dev/null || true
+    # Strip stray whitespace (e.g. a leading space from a copy-paste into
+    # the GitHub secret) -- curl rejects a URL containing any outright.
+    curl -fsS "$(tr -d '[:space:]' <"$HEALTHCHECKS_BACKUP_URL_FILE")${suffix}" >/dev/null || true
   fi
 }
 
