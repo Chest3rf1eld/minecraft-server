@@ -52,7 +52,7 @@ PY
 }
 
 download_plugins() {
-  local key required download_url version jar_name plugin
+  local key required download_url version jar_name
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
     required=$(read_yaml_value_optional "plugins.${key}.required")
