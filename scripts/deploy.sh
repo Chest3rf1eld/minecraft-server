@@ -24,7 +24,7 @@ wait_for_empty_server() {
     log "force deploy requested; skipping player wait"
     return
   fi
-  if [[ ! -f "$MINECRAFT_CURRENT_DIR/paper.jar" ]] || ! systemctl is-active --quiet minecraft.service; then
+  if [[ ! -f "$MINECRAFT_STATE_DIR/current-release" ]] || ! systemctl is-active --quiet minecraft.service; then
     log "initial deployment or stopped server; no active players can be present"
     return
   fi
@@ -107,6 +107,9 @@ run_deploy() {
     switch_current "$target"
   fi
   if verify_release; then
+    if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
+      cp "$MINECRAFT_STATE_DIR/target-release" "$MINECRAFT_STATE_DIR/current-release"
+    fi
     set_state SUCCESS
     telegram_alert info "deployment succeeded"
   else
