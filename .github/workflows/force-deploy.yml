@@ -19,8 +19,13 @@ jobs:
           DEPLOY_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%b' "$DEPLOY_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          printf '%b\n' "$DEPLOY_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          first_line=$(head -n 1 ~/.ssh/deploy_key)
+          case "$first_line" in
+            "-----BEGIN "*" PRIVATE KEY-----") ;;
+            *) echo "VPS_SSH_KEY is not an OpenSSH/PEM private key (first line: ${first_line:0:32})"; exit 1 ;;
+          esac
           ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
       - name: Force deployment
