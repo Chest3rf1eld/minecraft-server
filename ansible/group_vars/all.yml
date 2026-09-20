@@ -10,6 +10,10 @@ minecraft_server_port: 25565
 minecraft_java_xms: 2G
 minecraft_java_xmx: 3G
 minecraft_java_major: 25
+# minecraft_java_xmx alone can approach total VPS RAM once JVM off-heap
+# overhead is counted; this is a safety net, not primary memory (see
+# vm.swappiness in the base role).
+minecraft_swap_size: 2G
 minecraft_max_players: 5
 minecraft_view_distance: 8
 minecraft_simulation_distance: 6

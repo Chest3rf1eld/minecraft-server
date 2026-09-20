@@ -37,3 +37,61 @@
     line: PubkeyAuthentication yes
     validate: sshd -t -f %s
   notify: Restart ssh
+
+# Java is run with -Xmx3G (see minecraft.service) on a VPS with well under
+# 4G of total RAM, which leaves very little headroom for the JVM's own
+# off-heap overhead (metaspace, thread stacks, GC structures) and everything
+# else running (restic during backups, sshd, etc.), and there is no swap at
+# all otherwise. Chunk pregeneration is memory-heavy enough that this was
+# observed getting tight in practice.
+- name: Check if swap file already exists
+  ansible.builtin.stat:
+    path: /swapfile
+  register: swapfile_stat
+
+- name: Create swap file
+  ansible.builtin.command:
+    cmd: fallocate -l {{ minecraft_swap_size }} /swapfile
+  when: not swapfile_stat.stat.exists
+
+- name: Set swap file permissions
+  ansible.builtin.file:
+    path: /swapfile
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Format swap file
+  ansible.builtin.command:
+    cmd: mkswap /swapfile
+  when: not swapfile_stat.stat.exists
+
+- name: Check currently active swaps
+  ansible.builtin.command:
+    cmd: swapon --show=NAME --noheadings
+  register: active_swaps
+  changed_when: false
+
+- name: Enable swap file
+  ansible.builtin.command:
+    cmd: swapon /swapfile
+  when: "'/swapfile' not in active_swaps.stdout"
+
+- name: Persist swap file in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^/swapfile\s'
+    line: /swapfile none swap sw 0 0
+
+- name: Prefer RAM over swap (swap is a safety net, not primary memory)
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-minecraft-swappiness.conf
+    content: |
+      vm.swappiness=10
+    mode: '0644'
+  register: swappiness_conf
+
+- name: Apply swappiness immediately
+  ansible.builtin.command:
+    cmd: sysctl -w vm.swappiness=10
+  when: swappiness_conf.changed
