@@ -8,3 +8,11 @@
 *.properties text eol=lf
 *.j2 text eol=lf
 *.md text eol=lf
+*.conf text eol=lf
+# Shim scripts under test/local/bin and test/local/stub are named after
+# the real commands they stand in for (systemctl, curl, ...) and so have
+# no file extension for the rules above to match -- without this, Windows'
+# core.autocrlf would give them CRLF line endings on the next checkout,
+# breaking their shebang line once copied verbatim into a Linux container.
+test/local/bin/* text eol=lf
+test/local/stub/* text eol=lf

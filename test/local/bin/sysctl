@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# See test/local/bin/fallocate for why this is a no-op in tests.
+exit 0

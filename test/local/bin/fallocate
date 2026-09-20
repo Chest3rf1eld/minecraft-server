@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# ensure-swap.sh (called unconditionally at the top of deploy.sh's
+# run_deploy) does real host-level swap setup, which needs capabilities an
+# unprivileged test container doesn't have and has no business doing
+# against the Docker host anyway. This and the sibling mkswap/swapon/
+# sysctl shims let it run through its idempotent checks as a no-op instead
+# of either failing the test or actually touching the host.
+set -euo pipefail
+target=${*: -1}
+: >"$target"
