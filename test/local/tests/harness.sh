@@ -13,7 +13,19 @@ TESTS_FAILED=0
 # is isolated from whatever a previous test left behind, even though
 # /srv/minecraft is tmpfs for the whole container run.
 reset_environment() {
-  rm -rf /srv/minecraft
+  # A previous test scenario may have left its stub server actually
+  # running (e.g. a deploy that never called restore/stop): stopping it
+  # through the real shim -- not just deleting the pidfile -- is what
+  # actually frees the port. Without this, the next test's own stub
+  # sometimes fails its own bind (port already held by the leftover one),
+  # crashes immediately, and leaves a pidfile pointing at a dead process
+  # while the OLD process keeps quietly answering pings -- which is
+  # exactly the confusing "verify_release saw it as up, but is-active
+  # right after says it's not" failure this fixes.
+  systemctl stop minecraft.service 2>/dev/null || true
+  # /srv/minecraft itself is a tmpfs mount point (see docker-compose.yml),
+  # so it can be emptied but not removed and recreated.
+  find /srv/minecraft -mindepth 1 -delete 2>/dev/null || true
   mkdir -p /srv/minecraft/state /srv/minecraft/releases /srv/minecraft/shared /srv/minecraft/current
   printf 'motd=fixture\n' >/srv/minecraft/current/server.properties
   rm -f /tmp/minecraft-stub.pid /tmp/minecraft-stub.log

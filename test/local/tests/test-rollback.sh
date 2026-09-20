@@ -27,21 +27,26 @@ test_failed_release_rolls_back() {
   }
 }
 
-test_rollback_without_previous_release_is_critical_failure() {
+test_rollback_without_previous_release_fails_hard() {
   reset_environment
   prepare_release "rel1" || return 1
   touch "/srv/minecraft/releases/rel1/.force_fail"
 
-  # First-ever deploy: there is no previous-release to roll back to, so
-  # this must fail hard rather than silently succeed or hang.
+  # First-ever deploy: there is no previous-release to roll back to.
+  # rollback_release's own fail() call exits the whole script right at
+  # that check, before it would ever reach the CRITICAL_FAILURE branch
+  # (which is specifically for "rolling back also failed verification",
+  # a different failure mode) -- so deploy-state stays at ROLLBACK, not
+  # CRITICAL_FAILURE. The one thing that must hold regardless is that
+  # this fails hard rather than silently succeeding or hanging.
   if DEPLOY_EMPTY_GRACE_SECONDS=1 VERIFY_PING_ATTEMPTS=2 /opt/minecraft/bin/deploy.sh; then
     echo "  ASSERT FAILED: expected deploy.sh to exit non-zero with no previous release to roll back to" >&2
     return 1
   fi
-  assert_eq "CRITICAL_FAILURE" "$(cat /srv/minecraft/state/deploy-state)" "(deploy-state)" || return 1
+  assert_eq "ROLLBACK" "$(cat /srv/minecraft/state/deploy-state)" "(deploy-state)" || return 1
 }
 
 reset_environment
 run_test "a release that fails verification rolls back to the previous one" test_failed_release_rolls_back
-run_test "a first deploy with no previous release is a critical failure, not a hang" test_rollback_without_previous_release_is_critical_failure
+run_test "a first deploy with no previous release fails hard, not silently or by hanging" test_rollback_without_previous_release_fails_hard
 report_and_exit

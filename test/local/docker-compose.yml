@@ -29,6 +29,10 @@ services:
       - /srv/minecraft
       - /etc/minecraft/secrets
     environment:
+      # The stub's RCON server accepts any password (see stub/minecraft_stub.py),
+      # so a plain env var is enough -- no need for a fixture file under
+      # /etc/minecraft/secrets, which is tmpfs and empty by default anyway.
+      RCON_PASSWORD: test-rcon-password
       RCLONE_CONFIG: /opt/test/fixtures/rclone.conf
       RESTIC_PASSWORD_FILE: /opt/test/fixtures/restic_password
       HEALTHCHECKS_BACKUP_URL_FILE: /opt/test/fixtures/healthchecks_backup_url
