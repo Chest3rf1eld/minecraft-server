@@ -36,6 +36,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: DEBUG token presence
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          if [ -z "$GITHUB_TOKEN" ]; then echo "GITHUB_TOKEN: EMPTY"; else echo "GITHUB_TOKEN: len=${#GITHUB_TOKEN}"; fi
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
 
