@@ -11,9 +11,9 @@ The server is live and deployed at `minecraft.nikchester.ru:25565`. The full pip
 - Paper (pinned build, see `minecraft/versions.yml`) running under `minecraft.service`, AuthMeReloaded and CoreProtect loaded.
 - RCON bound locally but not exposed (only 22/tcp and 25565/tcp are open in the firewall).
 - restic backups to Yandex Disk succeed, verified via `restic snapshots`.
-- Telegram and Healthchecks.io alerts confirmed delivering (not just non-error exits).
-
-Known follow-ups (tracked as GitHub issues, not blocking): backup failures outside a deploy only ping Healthchecks.io, not Telegram (#6); old release directories under `/srv/minecraft/releases` are never pruned (#7); a manual `restore.sh` run against a real snapshot is still pending owner sign-off (#8).
+- Telegram and Healthchecks.io alerts confirmed delivering (not just non-error exits), including a direct Telegram alert on a failed backup, not only a Healthchecks.io ping (#6, closed).
+- Old release directories under `/srv/minecraft/releases` are pruned after every successful deploy, keeping the newest 5 and always protecting `current-release`/`previous-release` (#7, closed).
+- A full `restore.sh` run against a real snapshot has been exercised end-to-end on production, including a pre-restore safety backup; verified whitelist and AuthMe data survive the restore (#8, closed).
 
 ## Documents
 
