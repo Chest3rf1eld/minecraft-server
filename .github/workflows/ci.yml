@@ -33,17 +33,11 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: DEBUG token presence
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "event_name=${{ github.event_name }}"
-          if [ -z "$GITHUB_TOKEN" ]; then echo "GITHUB_TOKEN: EMPTY"; else echo "GITHUB_TOKEN: len=${#GITHUB_TOKEN}"; fi
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
 
   paper-smoke:
     runs-on: ubuntu-latest
