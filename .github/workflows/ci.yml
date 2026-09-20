@@ -38,6 +38,8 @@ jobs:
           fetch-depth: 0
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   paper-smoke:
     runs-on: ubuntu-latest
