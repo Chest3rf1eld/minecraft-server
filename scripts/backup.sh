@@ -29,7 +29,11 @@ send_hc() {
 run_backup() {
   ensure_state_dir
   send_hc "/start"
-  trap 'send_hc "/fail"' ERR
+  # Healthchecks.io only gets a silent ping here; without a direct alert, a
+  # single failed run is invisible in Telegram unless backups keep failing
+  # for a full day (healthcheck.sh's own 24h staleness check is the only
+  # other thing watching this).
+  trap 'send_hc "/fail"; telegram_alert critical "backup (${REASON}) failed"' ERR
   log "starting ${REASON} backup"
   if ! restic snapshots >/dev/null 2>&1; then
     log "restic repository not initialized yet; initializing"
@@ -40,7 +44,11 @@ run_backup() {
   # whose owning process is confirmed gone, so this is safe to run every time.
   restic unlock || true
   if systemctl is-active --quiet minecraft.service; then
-    "$SCRIPT_DIR/rcon-command.py" "save-all flush" || fail "RCON save-all flush failed"
+    # Not "|| fail ...": fail() exits directly, which bypasses the ERR
+    # trap above entirely (an explicit exit is not a failing command as
+    # far as the trap is concerned) -- letting this fail naturally under
+    # set -e is what actually fires the trap's Healthchecks/Telegram alert.
+    "$SCRIPT_DIR/rcon-command.py" "save-all flush"
   fi
   # World data, whitelist/ban/op lists, and plugin data (AuthMe accounts,
   # CoreProtect logs) all live under MINECRAFT_SHARED_DIR and are symlinked
