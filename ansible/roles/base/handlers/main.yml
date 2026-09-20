@@ -3,3 +3,8 @@
   ansible.builtin.service:
     name: ssh
     state: restarted
+
+- name: Apply swappiness
+  ansible.builtin.command:
+    cmd: sysctl -w vm.swappiness=10
+  changed_when: true
