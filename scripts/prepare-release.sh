@@ -116,6 +116,7 @@ prepare() {
   fi
   download_plugins
   cp -a minecraft/server.properties "$RELEASE_DIR/server.properties"
+  cp -a minecraft/server-icon.png "$RELEASE_DIR/server-icon.png"
   # Paper refuses to start at all without this; operating this server at
   # all is an implicit acceptance of the Minecraft EULA already.
   printf 'eula=true\n' >"$RELEASE_DIR/eula.txt"
