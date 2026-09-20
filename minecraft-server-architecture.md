@@ -425,6 +425,24 @@ It may be installed temporarily or permanently depending on operational convenie
 
 ---
 
+## Optional gameplay plugin
+
+### Dynamic Lights
+
+Purpose:
+
+- held/worn light sources (torches, lanterns, etc.) illuminate nearby blocks without placing them, purely via phantom light packets
+
+Configuration requirement:
+
+```yaml
+track_mobs: false
+```
+
+Mobs must not emit dynamic light from held/worn light sources (e.g. a zombie holding a torch); only players do. This config lives in the plugin's own, uncommitted data directory and is self-healed to `track_mobs: false` on every deploy cycle by `scripts/ensure-dynamiclights-config.sh`, since the plugin regenerates its config with `track_mobs: true` by default.
+
+---
+
 # 7. RCON
 
 Enable RCON for automation.
