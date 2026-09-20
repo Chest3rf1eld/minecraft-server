@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Stand-in for systemctl inside the test container (no systemd there at all).
+# Only supports what our own scripts actually call (verified by grepping
+# scripts/*.sh -- see test/local/README.md): `is-active --quiet`, `start`,
+# and `stop`, always against minecraft.service. Anything else fails loudly
+# rather than silently no-op-ing, so a script relying on more shim coverage
+# than this fails the test instead of passing for the wrong reason.
+set -euo pipefail
+
+PID_FILE=${MINECRAFT_STUB_PID_FILE:-/tmp/minecraft-stub.pid}
+STUB_SCRIPT=${MINECRAFT_STUB_SCRIPT:-/opt/test/stub/minecraft_stub.py}
+STUB_PORT=${STUB_PORT:-25565}
+
+quiet=false
+subcommand=""
+service=""
+for arg in "$@"; do
+  case "$arg" in
+    --quiet) quiet=true ;;
+    *.service) service="$arg" ;;
+    *) [[ -z "$subcommand" ]] && subcommand="$arg" ;;
+  esac
+done
+
+if [[ "$service" != "minecraft.service" ]]; then
+  echo "systemctl shim: only minecraft.service is supported (got: '${service}')" >&2
+  exit 1
+fi
+
+is_running() {
+  [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+case "$subcommand" in
+  is-active)
+    if is_running; then
+      "$quiet" || echo active
+      exit 0
+    else
+      "$quiet" || echo inactive
+      exit 3
+    fi
+    ;;
+  start)
+    if is_running; then
+      exit 0
+    fi
+    # deploy.sh's verify_release greps the current release's logs for
+    # AuthMe load evidence -- a real Paper+AuthMe start would produce
+    # this; the stub doesn't run a JVM at all, so faking that one line as
+    # a side effect of "starting" is the shim's job, not the release
+    # fixture's (prepare-release.sh's own output should stay realistic).
+    current_dir=${MINECRAFT_CURRENT_DIR:-/srv/minecraft/current}
+    mkdir -p "${current_dir}/logs"
+    printf '[stub] [AuthMe] AuthMe enabled (test stub, not real Paper)\n' >>"${current_dir}/logs/latest.log"
+    if [[ -f "${current_dir}/.force_fail" ]]; then
+      # For testing deploy.sh's rollback path: a release with this marker
+      # file intentionally never gets its stub launched, so the port-wait
+      # loop below times out and this command fails exactly the way a real
+      # Paper crash-on-boot would fail `systemctl start`. Keyed off the
+      # release directory (not a blanket env var) so that when deploy.sh
+      # rolls back to the PREVIOUS release, that release's own start
+      # succeeds normally instead of failing the rollback too.
+      :
+    else
+      python3 "$STUB_SCRIPT" >>/tmp/minecraft-stub.log 2>&1 &
+      echo $! >"$PID_FILE"
+    fi
+    # Give it a moment to actually bind before returning, matching real
+    # systemctl start's blocking-until-ready behavior closely enough for
+    # scripts that immediately try to connect.
+    for _ in $(seq 1 20); do
+      if (exec 3<>"/dev/tcp/127.0.0.1/${STUB_PORT}") 2>/dev/null; then
+        exec 3>&-
+        exit 0
+      fi
+      sleep 0.1
+    done
+    echo "systemctl shim: stub did not start listening on port ${STUB_PORT} in time" >&2
+    exit 1
+    ;;
+  stop)
+    if ! is_running; then
+      exit 0
+    fi
+    pid=$(cat "$PID_FILE")
+    kill -TERM "$pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+    rm -f "$PID_FILE"
+    exit 0
+    ;;
+  *)
+    echo "systemctl shim: unsupported subcommand '${subcommand}'" >&2
+    exit 1
+    ;;
+esac

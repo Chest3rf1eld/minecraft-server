@@ -9,6 +9,7 @@ SWAP_FILE=${SWAP_FILE:-/swapfile}
 SWAP_SIZE=${SWAP_SIZE:-2G}
 SWAPPINESS=${SWAPPINESS:-10}
 SYSCTL_CONF=${SYSCTL_CONF:-/etc/sysctl.d/99-minecraft-swappiness.conf}
+FSTAB_PATH=${FSTAB_PATH:-/etc/fstab}
 
 # minecraft.service runs Java with a heap ceiling (-Xmx) that can approach
 # total VPS RAM once JVM off-heap overhead is counted, and chunk
@@ -30,9 +31,9 @@ ensure_swap() {
     swapon "$SWAP_FILE"
   fi
 
-  if ! grep -q "^${SWAP_FILE} " /etc/fstab 2>/dev/null; then
-    log "persisting swap file in /etc/fstab"
-    printf '%s none swap sw 0 0\n' "$SWAP_FILE" >>/etc/fstab
+  if ! grep -q "^${SWAP_FILE} " "$FSTAB_PATH" 2>/dev/null; then
+    log "persisting swap file in ${FSTAB_PATH}"
+    printf '%s none swap sw 0 0\n' "$SWAP_FILE" >>"$FSTAB_PATH"
   fi
 
   if [[ ! -f "$SYSCTL_CONF" ]] || ! grep -qx "vm.swappiness=${SWAPPINESS}" "$SYSCTL_CONF"; then

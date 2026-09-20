@@ -1,0 +1,40 @@
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: testkey
+      MINIO_ROOT_PASSWORD: testsecret123
+      # backup.sh's default RESTIC_REPOSITORY is rclone:<remote>:minecraft-restic,
+      # where <remote> comes from rclone.conf's section name ("minio" here) --
+      # so the bucket must be named exactly minecraft-restic for the real,
+      # unmodified scripts to find it with no repository override.
+      MINIO_DEFAULT_BUCKETS: minecraft-restic
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  test-runner:
+    build:
+      context: ../..
+      dockerfile: test/local/Dockerfile
+    depends_on:
+      minio:
+        condition: service_healthy
+    tmpfs:
+      - /srv/minecraft
+      - /etc/minecraft/secrets
+    environment:
+      # The stub's RCON server accepts any password (see stub/minecraft_stub.py),
+      # so a plain env var is enough -- no need for a fixture file under
+      # /etc/minecraft/secrets, which is tmpfs and empty by default anyway.
+      RCON_PASSWORD: test-rcon-password
+      RCLONE_CONFIG: /opt/test/fixtures/rclone.conf
+      RESTIC_PASSWORD_FILE: /opt/test/fixtures/restic_password
+      HEALTHCHECKS_BACKUP_URL_FILE: /opt/test/fixtures/healthchecks_backup_url
+      TELEGRAM_TOKEN_FILE: /opt/test/fixtures/telegram_bot_token
+      TELEGRAM_CHAT_FILE: /opt/test/fixtures/telegram_chat_id

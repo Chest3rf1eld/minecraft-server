@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# See test/local/bin/fallocate for why this is a no-op in tests.
+# ensure-swap.sh's `swapon --show=NAME --noheadings` check always sees an
+# empty list here, so it calls `swapon /swapfile` every run rather than
+# only once -- harmless since both are no-ops.
+if [[ "${1:-}" == --show* ]]; then
+  exit 0
+fi
+exit 0
