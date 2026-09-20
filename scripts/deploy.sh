@@ -105,6 +105,35 @@ rollback_release() {
   fi
 }
 
+prune_old_releases() {
+  # Every deploy leaves a fresh ~150-250MB release directory behind and
+  # nothing ever removes the old ones. current-release and previous-release
+  # (needed for rollback) are always kept regardless of age; among the rest,
+  # only the newest RELEASE_RETENTION_COUNT-minus-protected are kept.
+  local keep_total=${RELEASE_RETENTION_COUNT:-5}
+  local cur prev
+  cur=$(cat "$MINECRAFT_STATE_DIR/target-release" 2>/dev/null || true)
+  prev=$(cat "$MINECRAFT_STATE_DIR/previous-release" 2>/dev/null || true)
+  local protected_count=0
+  [[ -n "$cur" ]] && protected_count=$((protected_count + 1))
+  [[ -n "$prev" && "$prev" != "$cur" ]] && protected_count=$((protected_count + 1))
+  local extra_keep=$((keep_total - protected_count))
+  [[ "$extra_keep" -lt 0 ]] && extra_keep=0
+  local release kept=0
+  while IFS= read -r release; do
+    [[ -n "$release" ]] || continue
+    if [[ "$release" == "$cur" || "$release" == "$prev" ]]; then
+      continue
+    fi
+    if [[ "$kept" -lt "$extra_keep" ]]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    rm -rf "$MINECRAFT_ROOT/releases/$release" || return 1
+    log "pruned old release $release"
+  done < <(ls -1 "$MINECRAFT_ROOT/releases" 2>/dev/null | sort -r)
+}
+
 switch_current() {
   local release_id=$1
   if [[ -d "$MINECRAFT_CURRENT_DIR" && ! -L "$MINECRAFT_CURRENT_DIR" ]]; then
@@ -143,6 +172,12 @@ run_deploy() {
   fi
   if verify_release; then
     if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
+      # Pruning runs before current-release is written: if it fails (e.g.
+      # disk full, permission issue), current-release stays at its old
+      # value, so the timer's idempotency check sees target != current and
+      # keeps retrying the whole deploy on the next tick instead of quietly
+      # settling into a "done" state with the disk problem unresolved.
+      prune_old_releases || fail "failed to prune old releases; deploy not finalized"
       cp "$MINECRAFT_STATE_DIR/target-release" "$MINECRAFT_STATE_DIR/current-release"
     fi
     set_state SUCCESS
