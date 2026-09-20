@@ -131,7 +131,7 @@ prune_old_releases() {
     fi
     rm -rf "$MINECRAFT_ROOT/releases/$release" || return 1
     log "pruned old release $release"
-  done < <(ls -1 "$MINECRAFT_ROOT/releases" 2>/dev/null | sort -r)
+  done < <(find "$MINECRAFT_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -r)
 }
 
 switch_current() {
