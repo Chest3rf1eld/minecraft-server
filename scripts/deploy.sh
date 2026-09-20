@@ -148,6 +148,11 @@ switch_current() {
 
 run_deploy() {
   ensure_state_dir
+  # Idempotent and cheap (a handful of stat/grep checks once already set
+  # up); running it on every tick means swap self-heals if it's ever lost
+  # (VPS migration, disk cleanup, a rebuilt host) without waiting for
+  # someone to notice or re-run the full provisioning playbook.
+  "$SCRIPT_DIR/ensure-swap.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
   # and bounce minecraft.service (kicking every connected player) forever,
