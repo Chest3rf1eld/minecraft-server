@@ -496,6 +496,82 @@ The project is v1 complete only when all acceptance criteria from `minecraft-ser
 - DB verification: SQLite inspection for CoreProtect/AuthMe only when operationally necessary.
 - CI checks: lint, secret scan, repository consistency, and Paper smoke test.
 
+### 12.5 Local Testing Infrastructure
+
+Local testing infrastructure allows validating infrastructure scripts (`deploy.sh`, `backup.sh`, `restore.sh`, `prepare-release.sh`, `lib.sh`) without deploying to the production VPS. This addresses the gap where script bugs were previously discovered only in production.
+
+#### 12.5.1 Scope
+
+| Test Category | In Scope | Out of Scope |
+|---------------|----------|--------------|
+| Full deploy cycle | Player-aware wait, pre-deploy backup, release switch, health check, rollback | Actual Minecraft gameplay |
+| Backup/restore | restic + rclone to local S3-compatible storage (minio) | Real Yandex Disk |
+| Unit tests | Script logic: flock, config parsing, error handling, state transitions | Full integration with production services |
+| Ansible provisioning | Not covered locally | Use real VPS for provisioning validation |
+
+#### 12.5.2 Environment
+
+- **Platform:** Docker Desktop on Windows (WSL2 backend).
+- **Container:** Debian-based image WITHOUT systemd.
+- **Systemctl shim:** A wrapper script that emulates systemctl behavior against a background Java process.
+- **Storage:** Ephemeral minio container (clean slate per test run, no persistence between runs).
+- **Scripts:** Run unmodified; no code changes to production scripts for testability.
+
+#### 12.5.3 Systemctl Shim
+
+The shim must handle these commands used by production scripts:
+
+| Command | Shim Behavior |
+|---------|---------------|
+| `systemctl is-active --quiet minecraft.service` | Return 0 if Java/stub process running, 1 otherwise |
+| `systemctl start minecraft.service` | Start the stub process in background |
+| `systemctl stop minecraft.service` | Graceful stop (SIGTERM, then SIGKILL after timeout) |
+| `systemctl restart minecraft.service` | Stop then start |
+| `systemctl daemon-reload` | No-op (no systemd in test env) |
+
+#### 12.5.4 Test Data
+
+- **World data:** Minimal fake world structure (~10 files, few KB) created at test setup.
+- **Plugin data:** Stub directories matching production layout without actual plugin JARs.
+- **Configuration:** Production-like `server.properties`, plugin configs with test-appropriate values.
+- **Releases:** Pre-built test release artifacts for deploy/rollback testing.
+
+#### 12.5.5 Minecraft Stub
+
+Real Paper JVM is NOT used in local tests. Instead:
+
+- **TCP stub:** A lightweight process that binds to port 25565 and responds to Minecraft protocol status pings.
+- **Purpose:** Allows health check scripts to verify "server is up" without JVM overhead.
+- **RCON stub:** Optional; responds to basic RCON commands (`list`, `save-all`, `stop`) if needed for script testing.
+
+#### 12.5.6 CI Integration
+
+- **Local only:** These tests run on the developer's machine, not in GitHub Actions.
+- **Rationale:** Avoids Docker-in-Docker complexity; CI remains lightweight (lint + paper-smoke).
+- **Final validation:** Production VPS remains the definitive test before release.
+
+#### 12.5.7 Test Execution
+
+```text
+Developer changes script
+  -> runs local test suite (docker compose up)
+  -> minio starts (ephemeral)
+  -> test container starts with systemctl shim
+  -> test scenarios execute (deploy, backup, restore, rollback)
+  -> assertions verify state transitions, file placement, lock behavior
+  -> containers torn down
+  -> fast feedback (target: < 60 seconds for full suite)
+```
+
+#### 12.5.8 Success Criteria
+
+- [ ] deploy.sh completes full cycle with stub server and shim
+- [ ] backup.sh creates restic snapshot in local minio
+- [ ] restore.sh restores from minio snapshot correctly
+- [ ] Rollback scenario restores previous release after simulated health failure
+- [ ] Lock contention between deploy and backup is handled correctly
+- [ ] Scripts exit with correct codes on success and failure paths
+
 ---
 
 ## 13. Implementation Plan
@@ -557,3 +633,4 @@ No critical open questions remain. Implementation choices may be adjusted only i
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-09-19 | OpenCode | Created implementation-ready specification from architecture and interview decisions. |
+| 2026-09-20 | OpenCode | Added section 12.5 Local Testing Infrastructure per issue #9. |
