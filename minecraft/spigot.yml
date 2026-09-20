@@ -1,0 +1,16 @@
+# Partial override, merged with Paper/Spigot's built-in defaults for any key
+# not listed here. Tuned for a 2 vCPU / 5-player VPS: keep mob AI/tracking
+# active near players, let it fall off faster with distance. See issue #15.
+world-settings:
+  default:
+    mob-spawn-range: 6
+    entity-activation-range:
+      animals: 20
+      monsters: 24
+      raiders: 48
+      misc: 12
+      water: 8
+    entity-tracking-range:
+      animals: 48
+      monsters: 48
+      misc: 48

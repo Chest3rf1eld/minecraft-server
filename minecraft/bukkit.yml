@@ -1,0 +1,9 @@
+# Partial override, merged with Paper/Spigot's built-in defaults for any key
+# not listed here. Lower per-player mob caps (per-player-mob-spawns is on)
+# and a slower monster-spawn tick, tuned for a 2 vCPU / 5-player VPS.
+# See issue #15.
+spawn-limits:
+  monsters: 50
+  ambient: 8
+ticks-per:
+  monster-spawns: 2
