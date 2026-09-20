@@ -46,6 +46,7 @@ jobs:
         id: versions
         run: |
           python3 -m pip install --user pyyaml
+          mkdir -p /tmp/paper-smoke
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import yaml
           data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
@@ -54,6 +55,14 @@ jobs:
           print(f"paper_url={data['paper'].get('download_url', '')}")
           print(f"java={data['java']['major']}")
           PY
+          python3 - <<'PY' > /tmp/paper-smoke/plugins.tsv
+          import yaml
+          data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
+          for key, plugin in (data.get('plugins') or {}).items():
+              url = plugin.get('download_url') or ''
+              if url:
+                  print(f"{key}\t{plugin.get('version', '')}\t{url}")
+          PY
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -61,7 +70,6 @@ jobs:
           java-version: ${{ steps.versions.outputs.java }}
       - name: Download Paper
         run: |
-          mkdir -p /tmp/paper-smoke
           url="${{ steps.versions.outputs.paper_url }}"
           if [ -z "$url" ]; then
             url="https://api.papermc.io/v2/projects/paper/versions/${{ steps.versions.outputs.minecraft }}/builds/${{ steps.versions.outputs.paper_build }}/downloads/paper-${{ steps.versions.outputs.minecraft }}-${{ steps.versions.outputs.paper_build }}.jar"
@@ -70,6 +78,20 @@ jobs:
             echo "::warning::Paper download endpoint is unavailable. Keep issue #3 open until the Paper API endpoint and pinned build are verified."
             touch /tmp/paper-smoke/SKIP_SMOKE
           fi
+      - name: Download plugins
+        run: |
+          if [ -f /tmp/paper-smoke/SKIP_SMOKE ]; then
+            exit 0
+          fi
+          mkdir -p /tmp/paper-smoke/plugins
+          plugin_count=0
+          while IFS=$'\t' read -r key version url; do
+            [ -n "$key" ] || continue
+            echo "downloading plugin $key ($version)"
+            curl -fsSL "$url" -o "/tmp/paper-smoke/plugins/${key}-${version}.jar"
+            plugin_count=$((plugin_count + 1))
+          done < /tmp/paper-smoke/plugins.tsv
+          echo "$plugin_count" > /tmp/paper-smoke/plugin_count.txt
       - name: Start Paper smoke server
         run: |
           if [ -f /tmp/paper-smoke/SKIP_SMOKE ]; then
@@ -80,20 +102,38 @@ jobs:
           sed -i 's/^enable-rcon=.*/enable-rcon=false/' /tmp/paper-smoke/server.properties
           echo 'eula=true' > /tmp/paper-smoke/eula.txt
           cd /tmp/paper-smoke
+          plugin_count=$(cat plugin_count.txt)
+          echo "expecting $plugin_count pinned plugin(s) to load"
           java -Xms512M -Xmx1G -jar paper.jar nogui >paper.log 2>&1 &
           echo $! > paper.pid
+          booted=0
           for i in $(seq 1 90); do
-            if grep -q 'Done' paper.log; then
-              exit 0
+            if grep -q 'Done (' paper.log; then
+              booted=1
+              break
             fi
             if ! kill -0 "$(cat paper.pid)" 2>/dev/null; then
-              cat paper.log
-              exit 1
+              break
             fi
             sleep 2
           done
-          cat paper.log
-          exit 1
+          if [ "$booted" -ne 1 ]; then
+            echo "::error::Paper did not finish starting (with $plugin_count pinned plugin(s) loaded)"
+            cat paper.log
+            exit 1
+          fi
+          if grep -qiE 'error occurred while enabling|could not load .*plugin' paper.log; then
+            echo "::error::a pinned plugin failed to enable"
+            cat paper.log
+            exit 1
+          fi
+          loaded=$(grep -oE 'Bukkit plugins \([0-9]+\):' paper.log | grep -oE '[0-9]+' | head -n1 || true)
+          if [ "${loaded:-0}" != "$plugin_count" ]; then
+            echo "::error::expected $plugin_count pinned plugin(s) to be recognized by Paper, found ${loaded:-0}"
+            cat paper.log
+            exit 1
+          fi
+          echo "all $plugin_count pinned plugin(s) loaded cleanly"
       - name: Stop Paper
         if: always()
         run: |
