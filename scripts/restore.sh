@@ -17,14 +17,29 @@ export RESTIC_PASSWORD_FILE=${RESTIC_PASSWORD_FILE:-/etc/minecraft/secrets/resti
 [[ -n "$SNAPSHOT" ]] || fail "usage: restore.sh <snapshot> CONFIRM_FULL_RESTORE"
 [[ "$CONFIRM" == "CONFIRM_FULL_RESTORE" ]] || fail "restore requires explicit CONFIRM_FULL_RESTORE"
 
+snapshot_exists() {
+  # `restic snapshots <id>` exits 0 even for an unknown ID (it just prints
+  # "Ignoring ...: no matching ID found" to stderr); only --json distinguishes
+  # a real match (an object with "short_id") from an empty result ("[]").
+  restic snapshots "$1" --json 2>/dev/null | grep -q '"short_id"'
+}
+
 run_restore() {
   log "starting full restore from snapshot ${SNAPSHOT}"
+  # Fail before touching the running server if the snapshot doesn't even
+  # exist -- a typo'd or already-pruned snapshot ID should never cost a
+  # stop/start cycle to discover.
+  snapshot_exists "$SNAPSHOT" || fail "snapshot ${SNAPSHOT} not found"
   # A full restore overwrites the current shared state outright; if the
   # target snapshot turns out to be wrong or the restore itself goes badly,
   # there must be something to come back to. backup.sh already no-ops its
   # own lock acquisition when called from inside one (see lib.sh), so this
   # is safe to call directly here.
   "$SCRIPT_DIR/backup.sh" pre-restore || fail "pre-restore backup failed; aborting restore"
+  # Re-check: backup.sh no longer prunes for a pre-restore reason (see
+  # backup.sh), but this still catches any other way the target could have
+  # gone missing before the server is stopped.
+  snapshot_exists "$SNAPSHOT" || fail "snapshot ${SNAPSHOT} vanished after pre-restore backup"
   systemctl stop minecraft.service || true
   restic restore "$SNAPSHOT" --target /
   systemctl start minecraft.service

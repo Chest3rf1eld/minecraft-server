@@ -58,7 +58,17 @@ run_backup() {
     "$MINECRAFT_ROOT/shared" \
     --tag "minecraft" \
     --tag "$REASON"
-  timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic forget --keep-within-daily 7d --keep-daily 30 --keep-monthly 6 --prune
+  # Only the regular cadence prunes old snapshots. A pre-deploy/pre-restore
+  # backup is a one-off protective snapshot taken seconds before some other
+  # operation -- running forget/prune here risks evicting whatever snapshot
+  # that operation actually needed. This is exactly what happened testing
+  # the restore path: a pre-restore backup landed in the same daily bucket
+  # as the snapshot being restored, "keep-daily 30" only keeps the newest
+  # per day, and forget/prune deleted the very snapshot restore.sh was
+  # about to use, failing the restore after the server was already stopped.
+  if [[ "$REASON" == "scheduled" ]]; then
+    timeout "${RESTIC_TIMEOUT_SECONDS:-900}" restic forget --keep-within-daily 7d --keep-daily 30 --keep-monthly 6 --prune
+  fi
   touch "$MINECRAFT_STATE_DIR/last-backup-success"
   send_hc
   trap - ERR
