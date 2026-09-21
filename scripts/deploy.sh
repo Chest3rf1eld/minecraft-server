@@ -158,6 +158,13 @@ run_deploy() {
   # missing, so this forces it back to false on every tick instead of
   # waiting for someone to notice mobs are glowing.
   "$SCRIPT_DIR/ensure-dynamiclights-config.sh"
+  # Same idempotent self-heal approach: AuthMe's own config.yml can drift
+  # back to its short default registration/login timeout and per-IP
+  # registration cap (e.g. a plugin update or reinstall regenerating
+  # defaults) after being tuned by hand on the VPS, so this forces the
+  # tuned values back on every tick instead of waiting for a player to
+  # report they got kicked mid-registration.
+  "$SCRIPT_DIR/ensure-authme-config.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
   # and bounce minecraft.service (kicking every connected player) forever,

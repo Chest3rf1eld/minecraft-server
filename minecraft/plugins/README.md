@@ -4,7 +4,7 @@ Plugin JAR files are not committed. Versions are declared in `../versions.yml` a
 
 Required plugins for v1:
 
-- AuthMeReloaded
+- AuthMeReloaded — its `config.yml` must keep `settings.restrictions.timeout: 60` (players need enough time to type a password twice) and `settings.restrictions.maxRegPerIp: 0` (unlimited registrations per IP, so a second player behind the same household/NAT can still register); `scripts/ensure-authme-config.sh` self-heals both on every deploy cycle since the config file lives in the persistent, uncommitted plugin data directory.
 - CoreProtect
 
 Optional administrative plugin:
