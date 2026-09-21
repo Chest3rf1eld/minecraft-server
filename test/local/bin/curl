@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Prevents tests from touching the real internet. The only real curl calls
+# our scripts make are: prepare-release.sh downloading paper.jar/plugins
+# (always with -o), telegram.sh posting an alert, and backup.sh/
+# vps-heartbeat.sh pinging Healthchecks.io (both GET, output discarded by
+# the caller). None of our scripts read curl's stdout for a download, only
+# whether it succeeded and, for -o, that the file exists afterward -- so a
+# placeholder file and exit 0 satisfies every caller unmodified.
+#
+# Set CURL_SHIM_FAIL=1 to make every call fail instead, for testing the
+# failure paths (backup.sh's ERR trap, prepare-release.sh's required-plugin
+# check, etc).
+set -euo pipefail
+
+if [[ "${CURL_SHIM_FAIL:-}" == "1" ]]; then
+  echo "curl shim: simulated failure (CURL_SHIM_FAIL=1)" >&2
+  exit 22
+fi
+
+output_file=""
+prev=""
+for arg in "$@"; do
+  if [[ "$prev" == "-o" ]]; then
+    output_file="$arg"
+  fi
+  prev="$arg"
+done
+
+if [[ -n "$output_file" ]]; then
+  mkdir -p "$(dirname "$output_file")"
+  printf 'fake download (test stub, not a real jar)\n' >"$output_file"
+fi

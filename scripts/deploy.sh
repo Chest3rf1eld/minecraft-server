@@ -153,6 +153,11 @@ run_deploy() {
   # (VPS migration, disk cleanup, a rebuilt host) without waiting for
   # someone to notice or re-run the full provisioning playbook.
   "$SCRIPT_DIR/ensure-swap.sh"
+  # Same idempotent self-heal approach: DynamicLights regenerates its own
+  # config with track_mobs back to its default (true) if the key ever goes
+  # missing, so this forces it back to false on every tick instead of
+  # waiting for someone to notice mobs are glowing.
+  "$SCRIPT_DIR/ensure-dynamiclights-config.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
   # and bounce minecraft.service (kicking every connected player) forever,
