@@ -1,0 +1,24 @@
+services:
+  paper:
+    build:
+      context: ../..
+      dockerfile: test/paper-local/Dockerfile
+      args:
+        JAVA_MAJOR: ${JAVA_MAJOR:-25}
+        PAPER_URL: ${PAPER_URL:?set by run.sh from minecraft/versions.yml}
+        DISCORDSRV_URL: ${DISCORDSRV_URL:-https://github.com/DiscordSRV/DiscordSRV/releases/download/v1.30.5/DiscordSRV-Build-1.30.5.jar}
+    ports:
+      - "25565:25565"
+    volumes:
+      # DiscordSRV's own config.yml/voice.yml (bot token, channel IDs) live
+      # here, persisted on the host so you can edit them yourself and just
+      # restart the container -- nothing here is ever put in a build arg or
+      # a committed file.
+      - ./data/DiscordSRV:/server/plugins/DiscordSRV
+      # Paperclip (paper.jar's own launcher) downloads and patches the
+      # vanilla Mojang server jar into this dir on first boot of a
+      # container; persisting it means recreating the container doesn't
+      # re-download it every time.
+      - ./cache:/server/cache
+    stdin_open: true
+    tty: true

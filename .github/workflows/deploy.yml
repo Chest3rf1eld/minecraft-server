@@ -49,6 +49,7 @@ jobs:
           RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           HEALTHCHECKS_BACKUP_URL: ${{ secrets.HEALTHCHECKS_BACKUP_URL }}
           HEALTHCHECKS_VPS_URL: ${{ secrets.HEALTHCHECKS_VPS_URL }}
           YANDEX_RCLONE_CONFIG: ${{ secrets.YANDEX_RCLONE_CONFIG }}
@@ -67,6 +68,8 @@ jobs:
             'sudo tee /etc/minecraft/secrets/telegram_bot_token >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_bot_token'
           printf '%s' "$TELEGRAM_CHAT_ID" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/telegram_chat_id >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_chat_id'
+          printf '%s' "$DISCORD_BOT_TOKEN" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'sudo tee /etc/minecraft/secrets/discord_bot_token >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/discord_bot_token'
           printf '%s' "$HEALTHCHECKS_BACKUP_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/healthchecks_backup_url >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/healthchecks_backup_url'
           printf '%s' "$HEALTHCHECKS_VPS_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
