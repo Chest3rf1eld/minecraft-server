@@ -76,12 +76,14 @@ Bukkit but logs that it isn't properly configured yet -- that's expected,
 and confirms the plugin itself loads cleanly against the pinned Paper
 build.
 
-**Status (issue #20):** done and confirmed against a real bot -- `[JDA]
+**Status (issue #20):** done and fully confirmed against a real bot -- `[JDA]
 Login Successful!` / `Connected to WebSocket` / `Enabling voice module` with
 no errors, account linking (`/discordsrv link`) works, joining the seeded
-lobby channel works. What's *not* confirmed yet: two people actually hearing
-distance/falloff change in-game, since that needs a second linked
-Discord+Minecraft participant, not just a second run of this container.
+lobby channel works, and two linked participants moving apart/together
+in-game changes what they hear over the lobby voice channel as expected.
+Both players connected over LAN rather than `localhost` for this pass (the
+container already publishes `25565` on `0.0.0.0`, so no compose changes were
+needed); nothing about the proximity/falloff behavior itself is LAN-specific.
 
 **The bot token is the one piece of this that's an actual secret: don't
 commit it, and prefer editing `test/paper-local/data/DiscordSRV/config.yml`
@@ -106,11 +108,11 @@ secret store.)
    `./test/paper-local/run.sh`) and confirm in the log that DiscordSRV logs
    in (`[JDA] Login Successful!` / `Connected to WebSocket`) and the voice
    module initializes with no errors.
-5. With a Minecraft client connected to `localhost:25565` and linked to a
-   Discord account (`/discordsrv link`), join the lobby voice channel in
-   Discord and confirm two players moving apart/together in-game changes
-   what they hear -- this last part needs two linked accounts and is
-   inherently manual, and is the one item still open.
+5. With a Minecraft client connected to `localhost:25565` (or the host's LAN
+   IP, for a second physical device) and linked to a Discord account
+   (`/discordsrv link`), join the lobby voice channel in Discord and confirm
+   two players moving apart/together in-game changes what they hear -- done,
+   see "Status" above.
 
 Note that recreating the container (not just restarting it) starts a fresh
 world, so an account linked in a previous world needs `/discordsrv link`
@@ -161,9 +163,10 @@ every deploy cycle. What's still open:
 - A real Discord server for the production bot, with a voice category and
   lobby channel set up ahead of time -- those IDs go in `voice.yml`, which
   has no secret-rendering machinery (they aren't secret, just not decided
-  yet).
+  yet). This is the only remaining blocker; the two-person proximity check
+  itself is done (see "Verifying the plugin loaded" above).
 - Actually adding DiscordSRV to `minecraft/versions.yml` -- not done here,
-  since the two-person proximity check is still open (see "Verifying the
-  plugin loaded" above). Until it's added there, `scripts/prepare-release.sh`
-  never downloads it and `ensure-discordsrv-config.sh` stays a no-op (its
-  own config file never exists).
+  pending the production Discord server above. Until it's added there,
+  `scripts/prepare-release.sh` never downloads it and
+  `ensure-discordsrv-config.sh` stays a no-op (its own config file never
+  exists).
