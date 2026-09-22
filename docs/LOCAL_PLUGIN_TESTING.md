@@ -58,9 +58,11 @@ directly -- see below.
 `test/paper-local/entrypoint.sh` also forces three non-secret IDs on every
 container start, since none of them grant access on their own without the
 bot already invited with the right permissions: `config.yml`'s `Channels`
-chat bridge (test channel `1551597801933242418`) and `voice.yml`'s `Voice
+chat bridge (channel `1551597801933242418`) and `voice.yml`'s `Voice
 category` (`1551598654245310494`) and `Lobby channel`
-(`1551598909024112726`). All three are committed and baked into the image,
+(`1551598909024112726`). These are the project's real, production Discord
+server IDs, not disposable test ones -- local runs and production share the
+same server/channels. All three are committed and baked into the image,
 unlike the bot token below. `Voice enabled` is still `false` by default --
 flip that yourself in `test/paper-local/data/DiscordSRV/voice.yml` once
 you've set the bot token too (step 3 below); there's no point enabling the
@@ -95,10 +97,10 @@ secret store.)
 
 1. Follow DiscordSRV's own [Initial
    Setup](https://docs.discordsrv.com/installation/initial-setup/) to
-   create a Discord application/bot and invite it to a test Discord server.
-   `Channels`, `Voice category`, and `Lobby channel` are already seeded to
-   this project's test server/channels by `entrypoint.sh` (see above); you
-   only need the bot's token.
+   create a Discord application/bot and invite it to the project's real
+   Discord server. `Channels`, `Voice category`, and `Lobby channel` are
+   already seeded to that server's channels by `entrypoint.sh` (see above);
+   you only need the bot's token.
 2. Start the container once (`./test/paper-local/run.sh`) so
    `test/paper-local/data/DiscordSRV/config.yml` and `voice.yml` get
    created, then stop it (or leave it running and restart after step 3).
@@ -145,7 +147,7 @@ container (`docker compose ... up --build`, or removing the container)
 starts a fresh one and re-applies it. It's local-only, like everything else
 in this directory: nothing here is copied into a production release.
 
-## Open question before this goes to production
+## Remaining step before this goes to production
 
 Unlike SoundWave (previous candidate, see issue #20 history), DiscordSRV
 ships ordinary GitHub Releases that `curl` fine, so adding it to
@@ -158,15 +160,16 @@ The bot token secret is already wired up: `DISCORD_BOT_TOKEN`
 by `.github/workflows/deploy.yml` the same way `TELEGRAM_BOT_TOKEN` is, and
 `scripts/ensure-discordsrv-config.sh` (wired into `scripts/deploy.sh`'s
 `run_deploy`) forces it into `plugins/DiscordSRV/config.yml`'s `BotToken` on
-every deploy cycle. What's still open:
+every deploy cycle. The production Discord server, voice category, and
+lobby channel are also already decided -- they're the same IDs `entrypoint.sh`
+seeds locally (see above), not a placeholder. What's still open:
 
-- A real Discord server for the production bot, with a voice category and
-  lobby channel set up ahead of time -- those IDs go in `voice.yml`, which
-  has no secret-rendering machinery (they aren't secret, just not decided
-  yet). This is the only remaining blocker; the two-person proximity check
-  itself is done (see "Verifying the plugin loaded" above).
-- Actually adding DiscordSRV to `minecraft/versions.yml` -- not done here,
-  pending the production Discord server above. Until it's added there,
-  `scripts/prepare-release.sh` never downloads it and
-  `ensure-discordsrv-config.sh` stays a no-op (its own config file never
+- Those channel/category/lobby IDs aren't yet rendered into `voice.yml` on
+  the VPS itself -- there's no self-heal script for them yet (unlike
+  `BotToken`, they aren't secret, so this can be a plain step in
+  `scripts/prepare-release.sh` or a small script alongside
+  `ensure-discordsrv-config.sh` rather than secret-rendering machinery).
+- Actually adding DiscordSRV to `minecraft/versions.yml` -- not done here.
+  Until it's added there, `scripts/prepare-release.sh` never downloads it
+  and `ensure-discordsrv-config.sh` stays a no-op (its own config file never
   exists).
