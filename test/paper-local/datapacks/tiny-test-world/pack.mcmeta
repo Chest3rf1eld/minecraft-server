@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "pack_format": 107,
+    "min_format": 107,
+    "max_format": 107,
+    "description": "Tiny bounded area near spawn, so two players can walk in and out of DiscordSRV's proximity voice range without exploring a full world. Local testing only -- see docs/LOCAL_PLUGIN_TESTING.md."
+  }
+}

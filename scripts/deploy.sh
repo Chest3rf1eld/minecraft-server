@@ -165,6 +165,12 @@ run_deploy() {
   # tuned values back on every tick instead of waiting for a player to
   # report they got kicked mid-registration.
   "$SCRIPT_DIR/ensure-authme-config.sh"
+  # Same idempotent self-heal approach: DiscordSRV writes its own config.yml
+  # with a literal "BOTTOKEN" placeholder in BotToken on first run, and a
+  # plugin update or hand-edit could revert it back there, so this renders
+  # the real token in from the DISCORD_BOT_TOKEN secret on every tick
+  # instead of leaving the bot silently offline until someone notices.
+  "$SCRIPT_DIR/ensure-discordsrv-config.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
   # and bounce minecraft.service (kicking every connected player) forever,

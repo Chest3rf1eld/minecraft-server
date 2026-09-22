@@ -1,0 +1,6 @@
+# DiscordSRV's config.yml/voice.yml land here once the container has run
+# once (bot token, Discord channel IDs) -- never commit these.
+/data/
+
+# Cached vanilla Mojang server jar Paperclip downloads on first boot.
+/cache/

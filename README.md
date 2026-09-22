@@ -21,6 +21,7 @@ The server is live and deployed at `minecraft.nikchester.ru:25565`. The full pip
 - `PLAN.md` - phased implementation plan and exit criteria.
 - `minecraft-server-architecture.md` - detailed architecture rationale and constraints.
 - `docs/OPERATIONS.md` - day-to-day commands and runbooks.
+- `docs/LOCAL_PLUGIN_TESTING.md` - run a real Paper server with a candidate plugin locally, before it's added to production.
 - `docs/WHITELIST.md` - add, check, and remove whitelist players.
 - `docs/BACKUP_RESTORE.md` - backup and restore procedure.
 - `docs/DISASTER_RECOVERY.md` - full VPS loss recovery.
