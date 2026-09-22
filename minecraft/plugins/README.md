@@ -4,7 +4,7 @@ Plugin JAR files are not committed. Versions are declared in `../versions.yml` a
 
 Required plugins for v1:
 
-- AuthMeReloaded
+- AuthMeReloaded — its `config.yml` must keep `settings.restrictions.timeout: 60` (players need enough time to type a password twice) and `settings.restrictions.maxRegPerIp: 0` (unlimited registrations per IP, so a second player behind the same household/NAT can still register); `scripts/ensure-authme-config.sh` self-heals both on every deploy cycle since the config file lives in the persistent, uncommitted plugin data directory.
 - CoreProtect
 
 Optional administrative plugin:
@@ -14,3 +14,7 @@ Optional administrative plugin:
 Optional gameplay plugin:
 
 - Dynamic Lights — held/worn light sources illuminate the world around a player without placing blocks. Its config.yml must keep `track_mobs: false` so mobs holding light sources (e.g. a zombie with a torch) don't also emit light; `scripts/ensure-dynamiclights-config.sh` self-heals this setting on every deploy cycle since the config file itself lives in the persistent, uncommitted plugin data directory.
+
+Under evaluation, not yet in production (issue #20):
+
+- DiscordSRV — its Voice Proximity module (`voice.yml`) links a Discord voice channel to in-game distance, so nearby players hear each other over Discord. Not in `../versions.yml` yet: needs a production Discord server (voice category + lobby channel) set up first. Its own `config.yml` regenerates with a literal `BotToken: "BOTTOKEN"` placeholder if the key is ever missing; `scripts/ensure-discordsrv-config.sh` renders the real token in from the `DISCORD_BOT_TOKEN` secret (`../../docs/SECRETS.md`) on every deploy cycle, same as AuthMeReloaded above. See `../../docs/LOCAL_PLUGIN_TESTING.md` for how to build and run it locally to test before this goes to production.
