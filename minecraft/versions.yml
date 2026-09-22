@@ -30,8 +30,15 @@ plugins:
     source: "manual"
     data_dir: "DynamicLights"
     download_url: "https://cdn.modrinth.com/data/F8hNkKfB/versions/rVrFWZ7P/DynamicLights-0.1.1-mc1.21.jar"
+  discordsrv:
+    version: "1.30.5"
+    required: false
+    source: "manual"
+    data_dir: "DiscordSRV"
+    download_url: "https://github.com/DiscordSRV/DiscordSRV/releases/download/v1.30.5/DiscordSRV-Build-1.30.5.jar"
 notes:
   production_gate: "Paper artifact URL was provided by the owner and should be used for smoke tests and release preparation."
   plugin_gate: "Plugin download URLs were resolved from the projects' own release APIs (GitHub for AuthMe, Modrinth for CoreProtect/Chunky/DynamicLights) at the exact pinned versions above; verify before bumping versions."
   dynamiclights_config: "DynamicLights' own config.yml (in shared/plugins/DynamicLights, not committed) must keep track_mobs: false so held light sources on mobs don't emit dynamic light; scripts/ensure-dynamiclights-config.sh self-heals this on every deploy cycle."
   authme_config: "AuthMe's own config.yml (in shared/plugins/AuthMe, not committed) must keep settings.restrictions.timeout: 60 and settings.restrictions.maxRegPerIp: 0 (issue #13); scripts/ensure-authme-config.sh self-heals both on every deploy cycle."
+  discordsrv_config: "DiscordSRV's own config.yml/voice.yml (in shared/plugins/DiscordSRV, not committed) must keep BotToken rendered from the DISCORD_BOT_TOKEN secret, Channels/Voice category/Lobby channel pointed at the project's real Discord server, and Voice enabled: true (issue #20); scripts/ensure-discordsrv-config.sh self-heals all of these on every deploy cycle."
