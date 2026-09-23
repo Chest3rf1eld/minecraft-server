@@ -29,6 +29,8 @@ reset_environment() {
   mkdir -p /srv/minecraft/state /srv/minecraft/releases /srv/minecraft/shared /srv/minecraft/current
   printf 'motd=fixture\n' >/srv/minecraft/current/server.properties
   rm -f /tmp/minecraft-stub.pid /tmp/minecraft-stub.log
+  printf '0\n' >/tmp/minecraft-stub-online
+  rm -f /tmp/minecraft-stub-rcon.log /tmp/minecraft-stub-fail-say
 }
 
 # Runs prepare-release.sh for real (curl is shimmed, so the paper.jar/plugin

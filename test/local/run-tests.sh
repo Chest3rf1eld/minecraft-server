@@ -10,6 +10,7 @@ set -uo pipefail
 # reason to wait out against a stub that binds its port in milliseconds.
 export DEPLOY_EMPTY_GRACE_SECONDS=${DEPLOY_EMPTY_GRACE_SECONDS:-1}
 export VERIFY_PING_ATTEMPTS=${VERIFY_PING_ATTEMPTS:-10}
+export DEPLOY_RESTART_COUNTDOWN_SECONDS=${DEPLOY_RESTART_COUNTDOWN_SECONDS:-0}
 
 overall_status=0
 for test_script in /opt/test/tests/test-*.sh; do
