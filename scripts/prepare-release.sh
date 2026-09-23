@@ -51,6 +51,17 @@ for key in (data.get("plugins") or {}):
 PY
 }
 
+render_config_tree() {
+  local source_dir=$1 output_dir=$2 source_file relative_path
+  [[ -d "$source_dir" ]] || return 0
+  while IFS= read -r -d '' source_file; do
+    relative_path=${source_file#"$source_dir"/}
+    "$SCRIPT_DIR/render-config.py" \
+      --source "$source_file" \
+      --output "$output_dir/$relative_path"
+  done < <(find "$source_dir" -type f -print0)
+}
+
 download_plugins() {
   local key required download_url version jar_name
   while IFS= read -r key; do
@@ -95,6 +106,7 @@ link_shared_state() {
     data_dir=$(read_yaml_value_optional "plugins.${key}.data_dir")
     [[ -n "$data_dir" ]] || continue
     mkdir -p "$MINECRAFT_SHARED_DIR/plugins/$data_dir"
+    render_config_tree "$PWD/minecraft/plugins/$data_dir" "$MINECRAFT_SHARED_DIR/plugins/$data_dir"
     ln -sfnT "$MINECRAFT_SHARED_DIR/plugins/$data_dir" "$RELEASE_DIR/plugins/$data_dir"
   done < <(list_plugin_keys)
 
@@ -115,15 +127,14 @@ prepare() {
       -o "$RELEASE_DIR/paper.jar"
   fi
   download_plugins
-  cp -a minecraft/server.properties "$RELEASE_DIR/server.properties"
+  "$SCRIPT_DIR/render-config.py" \
+    --source minecraft/server.properties \
+    --output "$RELEASE_DIR/server.properties"
+  render_config_tree "$PWD/minecraft/config" "$RELEASE_DIR/config"
   cp -a minecraft/server-icon.png "$RELEASE_DIR/server-icon.png"
   # Paper refuses to start at all without this; operating this server at
   # all is an implicit acceptance of the Minecraft EULA already.
   printf 'eula=true\n' >"$RELEASE_DIR/eula.txt"
-  if [[ -r /etc/minecraft/secrets/rcon_password ]]; then
-    sed -i "s/^rcon.password=.*/rcon.password=$(cat /etc/minecraft/secrets/rcon_password)/" "$RELEASE_DIR/server.properties"
-  fi
-  cp -a minecraft/paper "$RELEASE_DIR/paper"
   link_shared_state
   chown -R minecraft:minecraft "$RELEASE_DIR"
   printf '%s\n' "$RELEASE_ID" >"$MINECRAFT_STATE_DIR/target-release"

@@ -6,6 +6,23 @@ source "$SCRIPT_DIR/harness.sh"
 test_first_deploy_succeeds() {
   reset_environment
   prepare_release "rel1" || return 1
+  assert_contains "$(cat /srv/minecraft/releases/rel1/server.properties)" \
+    "rcon.password=test-rcon-password" "(rendered from repository template)" || return 1
+  assert_file_exists /srv/minecraft/releases/rel1/config/paper-global.yml || return 1
+  assert_file_exists /srv/minecraft/shared/plugins/AuthMe/config.yml || return 1
+  assert_file_exists /srv/minecraft/shared/plugins/Chunky/config.yml || return 1
+  assert_file_exists /srv/minecraft/shared/plugins/CoreProtect/config.yml || return 1
+  assert_file_exists /srv/minecraft/shared/plugins/DynamicLights/config.yml || return 1
+  assert_contains "$(cat /srv/minecraft/shared/plugins/AuthMe/config.yml)" \
+    "mySQLPassword: 'test-authme-mysql-password'" "(rendered plugin secret)" || return 1
+  if grep -R -q '{{[A-Z][A-Z0-9_]*}}' /srv/minecraft/releases/rel1/config /srv/minecraft/shared/plugins; then
+    echo "  ASSERT FAILED: unreplaced template marker in runtime configs" >&2
+    return 1
+  fi
+  if grep -q '{{[A-Z][A-Z0-9_]*}}' /srv/minecraft/releases/rel1/server.properties; then
+    echo "  ASSERT FAILED: unreplaced template marker in runtime server.properties" >&2
+    return 1
+  fi
   /opt/minecraft/bin/deploy.sh || return 1
   assert_eq "SUCCESS" "$(cat /srv/minecraft/state/deploy-state)" "(deploy-state)" || return 1
   assert_eq "rel1" "$(cat /srv/minecraft/state/current-release)" "(current-release)" || return 1

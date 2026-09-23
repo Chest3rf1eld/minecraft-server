@@ -1,0 +1,93 @@
+# DynamicLights configuration.
+# Set enabled: false to fully disable the feature on low-power servers.
+enabled: true
+
+# Players within this many blocks of an emitter receive light packets.
+view_radius: 32
+
+# How often the position-update task runs. 1 = every tick. Increase to 2 if CPU-bound.
+update_interval_ticks: 1
+
+# Smoothness controls. Each emitter lights a (2*cluster_radius+1) x cluster_height x (2*cluster_radius+1)
+# box of blocks centered on the entity's eye level. Larger values = smoother sliding light, more packets.
+# cluster_radius 0 = single column; 1 = 3x3 horizontal area; 2 = 5x5. Capped at 2.
+# cluster_height 1 = head only; 2 = head + body; 3 = head + body + feet. Capped at 3.
+cluster_radius: 1
+cluster_height: 2
+
+# How many light levels to subtract per block of (Chebyshev) distance from the cluster centre.
+# 0 = uniform brightness across the cluster (hard edge).
+# 2 = soft edge: outer blocks are 2 levels dimmer than inner ones (recommended; less popping when moving).
+cluster_falloff_per_block: 2
+
+# Worlds in which dynamic lights are completely disabled.
+disabled_worlds: []
+
+# How often mob equipment is rescanned for new/changed light items.
+mob_scan_interval_ticks: 4
+
+# Set to false to skip the mob scan entirely if you only want player lights.
+track_mobs: false
+
+# When true, dropped items lying in the world emit light if their type is in
+# item_brightness. (Same scan loop as track_mobs, so reuses mob_scan_interval_ticks.)
+track_items: true
+
+# When true, vanished and spectator players do not emit light.
+suppress_vanished_emitters: true
+suppress_spectator_emitters: true
+
+# Only mobs of these types are scanned for light items.
+mob_whitelist:
+  - ZOMBIE
+  - SKELETON
+  - PIGLIN
+  - PIGLIN_BRUTE
+  - DROWNED
+  - HUSK
+  - WITHER_SKELETON
+  - VINDICATOR
+  - PILLAGER
+  - VILLAGER
+
+# Which equipment slots are checked on each emitter.
+# Valid: MAIN_HAND, OFF_HAND, HEAD, CHEST, LEGS, FEET.
+equipment_slots:
+  - MAIN_HAND
+  - OFF_HAND
+  - HEAD
+
+# Material -> emitted light level (0-15).
+item_brightness:
+  TORCH: 14
+  SOUL_TORCH: 10
+  REDSTONE_TORCH: 7
+  LANTERN: 15
+  SOUL_LANTERN: 10
+  GLOWSTONE: 15
+  JACK_O_LANTERN: 15
+  SEA_LANTERN: 15
+  SHROOMLIGHT: 15
+  BLAZE_ROD: 10
+  END_ROD: 14
+  CAMPFIRE: 14
+  SOUL_CAMPFIRE: 10
+  GLOW_BERRIES: 6
+
+# Only blocks of these materials may be replaced with phantom light.
+# Anything else (walls, slabs, banners, etc.) is preserved.
+replaceable_blocks:
+  - AIR
+  - CAVE_AIR
+  - VOID_AIR
+  - WATER
+  - SHORT_GRASS
+  - TALL_GRASS
+  - FERN
+  - LARGE_FERN
+  - SEAGRASS
+  - TALL_SEAGRASS
+  - KELP
+  - KELP_PLANT
+  - SNOW
+  - VINE

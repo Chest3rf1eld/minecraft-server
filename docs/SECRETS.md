@@ -10,6 +10,8 @@ Secrets are not committed to Git. Values are added manually by the owner to GitH
 | `VPS_USER` | production environment | SSH user used by deploy workflows. |
 | `VPS_SSH_KEY` | production environment | Private SSH deploy key for GitHub Actions. |
 | `RCON_PASSWORD` | production environment | Local-only RCON password rendered on the VPS. |
+| `MANAGEMENT_SERVER_SECRET` | production environment | Minecraft management server secret. |
+| `AUTHME_MYSQL_PASSWORD` | production environment | AuthMe's configured MySQL password. |
 | `RESTIC_PASSWORD` | production environment | restic repository encryption password. |
 | `YANDEX_RCLONE_CONFIG` | production environment | rclone config content for Yandex Disk remote. |
 | `TELEGRAM_BOT_TOKEN` | production environment | Telegram bot token for alerts. |
@@ -23,6 +25,24 @@ Current project status: the owner reported that all required secrets have been a
 ## Runtime Secret Files
 
 Automation renders runtime secret files under `/etc/minecraft/secrets/` with restrictive permissions. Files under that directory must never be copied into the repository.
+
+For local release preparation, set the required secret as an environment
+variable (for example, `RCON_PASSWORD`) or place it in the ignored project
+`.env` file as `RCON_PASSWORD=value`. `scripts/render-config.py` uses the same
+tracked template as production, gives rendered files mode `0600`, and fails
+when a required value is missing. Do not use a real production secret in local
+tests or commit `.env`.
+
+Before deploying this branch, ensure `MANAGEMENT_SERVER_SECRET` and
+`AUTHME_MYSQL_PASSWORD` exist in the GitHub `production` environment. Empty
+AuthMe mail, GeoIP and LoginSecurity MySQL settings stay empty in the tracked
+configuration and do not need GitHub secrets unless those features are enabled.
+
+GitHub secret values cannot be downloaded with `gh` or read by a local process.
+For local Paper smoke testing, use the disposable fallback values or provide
+local-only values via exported environment variables or the ignored root `.env`
+file. A safe pre-deploy check of the actual `production` secrets is tracked in
+issue #31.
 
 ## Rotation
 

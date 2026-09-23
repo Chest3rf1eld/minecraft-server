@@ -580,12 +580,14 @@ minecraft-infra/
 │
 ├── minecraft/
 │   ├── server.properties
-│   ├── paper/
+│   ├── config/
 │   │   ├── paper-global.yml
 │   │   └── paper-world-defaults.yml
 │   ├── plugins/
-│   │   ├── manifest.yml
-│   │   └── configs/
+│   │   ├── AuthMe/
+│   │   ├── Chunky/
+│   │   ├── CoreProtect/
+│   │   └── DynamicLights/
 │   └── versions.yml
 │
 ├── scripts/

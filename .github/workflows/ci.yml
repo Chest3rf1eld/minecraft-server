@@ -14,6 +14,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Repository validation
         run: python3 scripts/validate-repository.py
+      - name: Configuration rendering tests
+        run: python3 -m unittest discover -s test/config -v
       - name: Install tools
         run: |
           sudo apt-get update
@@ -79,7 +81,11 @@ jobs:
             echo "Skipping Paper smoke startup because Paper artifact download was unavailable."
             exit 0
           fi
-          cp minecraft/server.properties /tmp/paper-smoke/server.properties
+          RCON_PASSWORD=ci-smoke-placeholder \
+          MANAGEMENT_SERVER_SECRET=ci-management-placeholder \
+          python3 scripts/render-config.py \
+            --source minecraft/server.properties \
+            --output /tmp/paper-smoke/server.properties
           sed -i 's/^enable-rcon=.*/enable-rcon=false/' /tmp/paper-smoke/server.properties
           echo 'eula=true' > /tmp/paper-smoke/eula.txt
           cd /tmp/paper-smoke
