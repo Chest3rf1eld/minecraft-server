@@ -24,9 +24,55 @@ implementation issue: #11.
 
 Requires Docker Desktop running.
 
+Run the complete local test pass, including the real Paper/plugin startup
+smoke:
+
+```bash
+bash test/local/run-all.sh
+```
+
+This runs the fast isolated deploy suite first and then the networked Paper
+plugin smoke. It can take several minutes on the first run.
+
+To run only the fast, offline-friendly suite:
+
 ```bash
 docker compose -f test/local/docker-compose.yml up --build --abort-on-container-exit
 ```
+
+The full test pass downloads the pinned Paper/plugin JARs and verifies that the
+real Paper server starts and enables the configured plugins. To run just that
+integration smoke:
+
+```bash
+docker compose --env-file .env -f test/local/docker-compose.yml --profile plugins run --build --rm paper-plugin-smoke
+```
+
+This profile needs internet access. It uses disposable fallback values unless
+you explicitly provide local overrides, and an
+ephemeral server directory; it does not connect to production services or
+persist a world. The fast suite tests deploy/backup/restore behavior, while the
+plugin smoke tests real artifact compatibility and startup.
+
+The Paper smoke accepts `RCON_PASSWORD`, `MANAGEMENT_SERVER_SECRET`, and
+`AUTHME_MYSQL_PASSWORD` from the invoking shell, or from the ignored project
+root `.env` file. It falls back to disposable values when they are unset. GitHub
+does not provide a way for a local process to read back environment secret
+values. A safe pre-deploy check of the actual `production` secrets is tracked
+separately in issue #31.
+
+To use local overrides, create the ignored root `.env` file with these entries
+(quote values only if the parser requirements of your environment call for it):
+
+```dotenv
+RCON_PASSWORD=local-value
+MANAGEMENT_SERVER_SECRET=local-value
+AUTHME_MYSQL_PASSWORD=local-value
+```
+
+`run-all.sh` passes this file to Compose when it exists. The direct Compose
+command above assumes `.env` exists; omit `--env-file .env` to use fallback
+values when it does not.
 
 Exit code is 0 if every test script passed, non-zero otherwise. Everything
 is ephemeral (`tmpfs` for `/srv/minecraft` and minio's data dir): each run
@@ -41,6 +87,9 @@ docker compose -f test/local/docker-compose.yml up --build test-runner
 ## Layout
 
 - `Dockerfile` / `docker-compose.yml` -- the test container + minio.
+- `PaperSmoke.Dockerfile` / `run-paper-plugin-smoke.sh` -- optional real Paper
+  and plugin startup integration check.
+- `run-all.sh` -- runs both test layers and tears down the Compose stack.
 - `bin/` -- shims (`systemctl`, `curl`, `fallocate`, `mkswap`, `swapon`,
   `sysctl`), placed ahead of the real ones in `PATH`.
 - `stub/minecraft_stub.py` -- status-ping + RCON stub the shimmed

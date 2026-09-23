@@ -504,16 +504,18 @@ Local testing infrastructure allows validating infrastructure scripts (`deploy.s
 
 | Test Category | In Scope | Out of Scope |
 |---------------|----------|--------------|
-| Full deploy cycle | Player-aware wait, pre-deploy backup, release switch, health check, rollback | Actual Minecraft gameplay |
+| Full deploy cycle | Player-aware wait, pre-deploy backup, release switch, health check, rollback (against a stub) | Actual Minecraft gameplay |
 | Backup/restore | restic + rclone to local S3-compatible storage (minio) | Real Yandex Disk |
 | Unit tests | Script logic: flock, config parsing, error handling, state transitions | Full integration with production services |
+| Paper/plugin smoke | Start the pinned real Paper artifact with pinned plugin JARs and verify required plugins enable | Gameplay, production databases, external plugin services |
 | Ansible provisioning | Not covered locally | Use real VPS for provisioning validation |
 
 #### 12.5.2 Environment
 
 - **Platform:** Docker Desktop on Windows (WSL2 backend).
-- **Container:** Debian-based image WITHOUT systemd.
-- **Systemctl shim:** A wrapper script that emulates systemctl behavior against a background Java process.
+- **Fast test container:** Debian-based image WITHOUT systemd.
+- **Systemctl shim:** A wrapper script that emulates systemctl behavior against the lightweight Minecraft protocol stub.
+- **Optional plugin smoke container:** Java runtime that downloads artifacts from the pinned metadata and starts real Paper directly; it does not emulate systemd or deploy/rollback.
 - **Storage:** Ephemeral minio container (clean slate per test run, no persistence between runs).
 - **Scripts:** Run unmodified; no code changes to production scripts for testability.
 
@@ -536,13 +538,19 @@ The shim must handle these commands used by production scripts:
 - **Configuration:** Production-like `server.properties`, plugin configs with test-appropriate values.
 - **Releases:** Pre-built test release artifacts for deploy/rollback testing.
 
-#### 12.5.5 Minecraft Stub
+#### 12.5.5 Minecraft Stub and Plugin Smoke
 
-Real Paper JVM is NOT used in local tests. Instead:
+The fast deploy/backup tests do not use the real Paper JVM. Instead:
 
 - **TCP stub:** A lightweight process that binds to port 25565 and responds to Minecraft protocol status pings.
 - **Purpose:** Allows health check scripts to verify "server is up" without JVM overhead.
 - **RCON stub:** Optional; responds to basic RCON commands (`list`, `save-all`, `stop`) if needed for script testing.
+
+An additional `plugins` Compose profile runs the real pinned Paper JAR and
+downloads each pinned plugin JAR from `minecraft/versions.yml`. It waits for
+Paper startup and checks that AuthMe, CoreProtect, Chunky, and DynamicLights
+were enabled. This catches artifact/API/startup incompatibilities, but is not a
+gameplay test and does not connect to production databases or external services.
 
 #### 12.5.6 CI Integration
 
@@ -561,6 +569,8 @@ Developer changes script
   -> assertions verify state transitions, file placement, lock behavior
   -> containers torn down
   -> fast feedback (target: < 60 seconds for full suite)
+  -> optionally runs `docker compose --profile plugins run --build --rm paper-plugin-smoke`
+  -> pinned Paper and plugin artifacts start in an isolated container
 ```
 
 #### 12.5.8 Success Criteria
@@ -571,6 +581,7 @@ Developer changes script
 - [ ] Rollback scenario restores previous release after simulated health failure
 - [ ] Lock contention between deploy and backup is handled correctly
 - [ ] Scripts exit with correct codes on success and failure paths
+- [ ] Optional plugin smoke starts Paper and verifies all configured plugin JARs enable
 
 ---
 

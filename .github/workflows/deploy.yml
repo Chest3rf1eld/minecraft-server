@@ -46,6 +46,8 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           RCON_PASSWORD: ${{ secrets.RCON_PASSWORD }}
+          MANAGEMENT_SERVER_SECRET: ${{ secrets.MANAGEMENT_SERVER_SECRET }}
+          AUTHME_MYSQL_PASSWORD: ${{ secrets.AUTHME_MYSQL_PASSWORD }}
           RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -59,8 +61,18 @@ jobs:
             'sudo mkdir -p /srv/minecraft/repo && sudo tar -xzf /tmp/minecraft-infra.tgz -C /srv/minecraft/repo && sudo chown -R root:root /srv/minecraft/repo'
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo install -d -m 0700 /etc/minecraft/secrets'
+          for name in RCON_PASSWORD MANAGEMENT_SERVER_SECRET AUTHME_MYSQL_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Required production secret is missing: $name"
+              exit 1
+            fi
+          done
           printf '%s' "$RCON_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/rcon_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/rcon_password'
+          printf '%s' "$MANAGEMENT_SERVER_SECRET" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'sudo tee /etc/minecraft/secrets/management_server_secret >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/management_server_secret'
+          printf '%s' "$AUTHME_MYSQL_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'sudo tee /etc/minecraft/secrets/authme_mysql_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/authme_mysql_password'
           printf '%s' "$RESTIC_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'sudo tee /etc/minecraft/secrets/restic_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/restic_password'
           printf '%s' "$TELEGRAM_BOT_TOKEN" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \

@@ -32,10 +32,9 @@ COPY test/local/stub/ /opt/test/stub/
 COPY scripts/ /opt/minecraft/bin/
 RUN chmod +x /opt/test/shim/* /opt/minecraft/bin/*.sh /opt/minecraft/bin/*.py
 
-# prepare-release.sh reads minecraft/server.properties, minecraft/server-icon.png
-# and minecraft/paper/ relative to $PWD (not an env-overridable path), the
-# same way the real deploy.yml workflow cds into the checked-out repo
-# before calling it -- /opt/test/repo mirrors that.
+# prepare-release.sh reads minecraft/ config and assets relative to $PWD (not an
+# env-overridable path), the same way the real deploy.yml workflow cds into the
+# checked-out repo before calling it -- /opt/test/repo mirrors that.
 COPY minecraft/ /opt/test/repo/minecraft/
 
 ENV PATH="/opt/test/shim:${PATH}" \

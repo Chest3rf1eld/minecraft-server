@@ -25,6 +25,7 @@ The server is live and deployed at `minecraft.nikchester.ru:25565`. The full pip
 - `docs/BACKUP_RESTORE.md` - backup and restore procedure.
 - `docs/DISASTER_RECOVERY.md` - full VPS loss recovery.
 - `docs/SECRETS.md` - expected GitHub secret names.
+- `docs/CONFIGURATION.md` - configuration source/runtime inventory and migration status.
 
 ## Core Constraints
 
