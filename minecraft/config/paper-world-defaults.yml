@@ -1,3 +1,4 @@
+# yamllint disable rule:indentation
 # This is the world defaults configuration file for Paper.
 # As you can see, there's a lot to configure. Some options may impact gameplay, so use
 # with caution, and make sure you know what each option does before configuring.

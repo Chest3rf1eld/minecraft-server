@@ -1,3 +1,4 @@
+# yamllint disable rule:indentation
 DataSource:
     # What type of database do you want to use?
     # Valid values: SQLITE, MARIADB, MYSQL, POSTGRESQL
