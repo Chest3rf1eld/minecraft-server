@@ -16,10 +16,27 @@ state_file() {
   printf '%s/deploy-state' "$MINECRAFT_STATE_DIR"
 }
 
+supersede_request_file() {
+  printf '%s/deploy-supersede-request' "$MINECRAFT_STATE_DIR"
+}
+
 set_state() {
   ensure_state_dir
   printf '%s\n' "$1" >"$(state_file)"
   log "deployment state: $1"
+}
+
+supersede_if_requested() {
+  local current_release
+  [[ -e "$(supersede_request_file)" ]] || return 1
+  current_release=$(cat "$MINECRAFT_STATE_DIR/current-release" 2>/dev/null || true)
+  if [[ -n "$current_release" ]]; then
+    printf '%s\n' "$current_release" >"$MINECRAFT_STATE_DIR/target-release"
+  fi
+  rm -f "$(supersede_request_file)"
+  set_state SUPERSEDED
+  log "pending deployment superseded by a newer request"
+  return 0
 }
 
 notify_players() {
@@ -43,18 +60,31 @@ wait_for_empty_server() {
     return
   fi
   set_state WAITING_FOR_EMPTY_SERVER
-  local start now online last_notice=0
+  local start now online last_notice=0 grace_remaining
   start=$(date +%s)
   while true; do
+    if supersede_if_requested; then
+      return 2
+    fi
     online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
     now=$(date +%s)
     if [[ "$online" -gt 0 ]] && { [[ "$last_notice" -eq 0 ]] || [[ $((now - last_notice)) -ge "$PENDING_NOTICE_INTERVAL" ]]; }; then
       notify_players "Скоро будет обновление. Пожалуйста, сохранитесь и выйдите с сервера. Перезапуск начнётся, когда все игроки выйдут."
+      if [[ "$last_notice" -eq 0 ]]; then
+        telegram_alert info "Обновление ожидает выхода игроков. Сервер продолжает работать; деплой начнётся после того, как все выйдут."
+      fi
       last_notice=$now
     fi
     if [[ "$online" -eq 0 ]]; then
       set_state EMPTY_GRACE_PERIOD
-      sleep "$GRACE_SECONDS"
+      grace_remaining=$GRACE_SECONDS
+      while [[ "$grace_remaining" -gt 0 ]]; do
+        if supersede_if_requested; then
+          return 2
+        fi
+        sleep 1
+        grace_remaining=$((grace_remaining - 1))
+      done
       online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
       if [[ "$online" -eq 0 ]]; then
         return
@@ -196,10 +226,24 @@ run_deploy() {
     return
   fi
   set_state PENDING
-  wait_for_empty_server
+  local wait_status=0
+  wait_for_empty_server || wait_status=$?
+  if [[ "$wait_status" -eq 2 ]]; then
+    return 0
+  elif [[ "$wait_status" -ne 0 ]]; then
+    return "$wait_status"
+  fi
+  # Close the small race between the wait loop returning and BACKUP becoming
+  # visible: a newer request may ask to supersede while the controller still
+  # advertises an empty-server state. Once BACKUP is recorded, requests wait
+  # for this operation rather than interrupting it.
+  if supersede_if_requested; then
+    return 0
+  fi
   set_state BACKUP
   "$SCRIPT_DIR/backup.sh" pre-deploy
   set_state DEPLOYING
+  telegram_alert info "Начал деплой обновления Minecraft."
   if systemctl is-active --quiet minecraft.service; then
     if [[ "$RESTART_COUNTDOWN_SECONDS" -gt 0 ]]; then
       local countdown_unit=секунд
@@ -238,10 +282,11 @@ run_deploy() {
     fi
     set_state SUCCESS
     notify_players "Обновление установлено. Сервер снова доступен."
-    telegram_alert info "deployment succeeded"
+    telegram_alert info "Деплой прошёл успешно. Сервер снова доступен — жду игроков!"
   else
     rollback_release
   fi
+  rm -f "$(supersede_request_file)"
 }
 
 with_global_lock run_deploy
