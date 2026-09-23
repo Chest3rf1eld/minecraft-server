@@ -73,7 +73,12 @@ def handle_status_connection(conn):
         length = varint_decode(lambda: recv_exact(conn, 1))
         recv_exact(conn, length)
 
-        online = int(os.environ.get("STUB_ONLINE_PLAYERS", "0"))
+        online_file = "/tmp/minecraft-stub-online"
+        if os.path.exists(online_file):
+            with open(online_file, encoding="utf-8") as handle:
+                online = int(handle.read().strip())
+        else:
+            online = int(os.environ.get("STUB_ONLINE_PLAYERS", "0"))
         max_players = int(os.environ.get("STUB_MAX_PLAYERS", "5"))
         motd = os.environ.get("STUB_MOTD", "local test stub")
         version_name = os.environ.get("STUB_VERSION_NAME", "Paper 0.0-test")
@@ -142,6 +147,10 @@ def handle_rcon_connection(conn):
                 return
             if packet_type != SERVERDATA_EXECCOMMAND:
                 continue
+            with open("/tmp/minecraft-stub-rcon.log", "a", encoding="utf-8") as handle:
+                handle.write(payload.strip() + "\n")
+            if payload.strip().startswith("say ") and os.path.exists("/tmp/minecraft-stub-fail-say"):
+                return
             reply = RCON_REPLIES.get(payload.strip(), "")
             conn.sendall(rcon_packet(request_id, SERVERDATA_RESPONSE_VALUE, reply))
 

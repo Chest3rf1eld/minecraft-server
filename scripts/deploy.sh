@@ -8,6 +8,9 @@ source "$SCRIPT_DIR/lib.sh"
 FORCE=${FORCE_DEPLOY:-false}
 GRACE_SECONDS=${DEPLOY_EMPTY_GRACE_SECONDS:-300}
 PENDING_NOTICE_AFTER=${DEPLOY_PENDING_NOTICE_AFTER_SECONDS:-86400}
+PENDING_NOTICE_INTERVAL=${DEPLOY_PENDING_NOTICE_INTERVAL_SECONDS:-900}
+PLAYER_POLL_SECONDS=${DEPLOY_PLAYER_POLL_SECONDS:-60}
+RESTART_COUNTDOWN_SECONDS=${DEPLOY_RESTART_COUNTDOWN_SECONDS:-60}
 
 state_file() {
   printf '%s/deploy-state' "$MINECRAFT_STATE_DIR"
@@ -19,9 +22,20 @@ set_state() {
   log "deployment state: $1"
 }
 
+notify_players() {
+  local message=$1
+  if ! "$SCRIPT_DIR/rcon-command.py" "say $message" >/dev/null 2>&1; then
+    log "could not send in-game deployment notice via RCON"
+  fi
+  return 0
+}
+
 wait_for_empty_server() {
   if [[ "$FORCE" == "true" ]]; then
     log "force deploy requested; skipping player wait"
+    if systemctl is-active --quiet minecraft.service; then
+      notify_players "Внимание: запущено принудительное обновление. Сервер перезапустится после резервного копирования. Пожалуйста, сохранитесь и выйдите."
+    fi
     return
   fi
   if [[ ! -f "$MINECRAFT_STATE_DIR/current-release" ]] || ! systemctl is-active --quiet minecraft.service; then
@@ -29,10 +43,15 @@ wait_for_empty_server() {
     return
   fi
   set_state WAITING_FOR_EMPTY_SERVER
-  local start now online
+  local start now online last_notice=0
   start=$(date +%s)
   while true; do
     online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
+    now=$(date +%s)
+    if [[ "$online" -gt 0 ]] && { [[ "$last_notice" -eq 0 ]] || [[ $((now - last_notice)) -ge "$PENDING_NOTICE_INTERVAL" ]]; }; then
+      notify_players "Скоро будет обновление. Пожалуйста, сохранитесь и выйдите с сервера. Перезапуск начнётся, когда все игроки выйдут."
+      last_notice=$now
+    fi
     if [[ "$online" -eq 0 ]]; then
       set_state EMPTY_GRACE_PERIOD
       sleep "$GRACE_SECONDS"
@@ -42,15 +61,11 @@ wait_for_empty_server() {
       fi
       log "player joined during grace period; returning to wait"
     fi
-    now=$(date +%s)
     if [[ $((now - start)) -gt "$PENDING_NOTICE_AFTER" ]]; then
       telegram_alert warning "deployment has been pending for more than 24 hours"
-      if command -v mcrcon >/dev/null 2>&1; then
-        true
-      fi
       start=$now
     fi
-    sleep 60
+    sleep "$PLAYER_POLL_SECONDS"
   done
 }
 
@@ -185,6 +200,24 @@ run_deploy() {
   set_state BACKUP
   "$SCRIPT_DIR/backup.sh" pre-deploy
   set_state DEPLOYING
+  if systemctl is-active --quiet minecraft.service; then
+    if [[ "$RESTART_COUNTDOWN_SECONDS" -gt 0 ]]; then
+      local countdown_unit=секунд
+      case "$((RESTART_COUNTDOWN_SECONDS % 100))" in
+        11|12|13|14) ;;
+        *)
+          case "$((RESTART_COUNTDOWN_SECONDS % 10))" in
+            1) countdown_unit=секунду ;;
+            2|3|4) countdown_unit=секунды ;;
+          esac
+          ;;
+      esac
+      notify_players "Сервер перезапустится через ${RESTART_COUNTDOWN_SECONDS} ${countdown_unit} для обновления. Пожалуйста, сохранитесь и выйдите."
+      sleep "$RESTART_COUNTDOWN_SECONDS"
+    else
+      notify_players "Сервер перезапускается для обновления. Пожалуйста, сохранитесь и выйдите."
+    fi
+  fi
   systemctl stop minecraft.service || true
   # Release preparation is intentionally separate; this controller verifies and switches prepared releases.
   if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
@@ -204,6 +237,7 @@ run_deploy() {
       cp "$MINECRAFT_STATE_DIR/target-release" "$MINECRAFT_STATE_DIR/current-release"
     fi
     set_state SUCCESS
+    notify_players "Обновление установлено. Сервер снова доступен."
     telegram_alert info "deployment succeeded"
   else
     rollback_release
