@@ -38,6 +38,12 @@ test_normal_and_force_deploy_notices() {
   fi
   assert_contains "$(cat /tmp/minecraft-stub-rcon.log)" \
     "say Сервер перезапустится через 2 секунды для обновления." "(normal deploy final warning)" || return 1
+  assert_contains "$(cat /tmp/minecraft-stub-telegram.log)" \
+    "Обновление ожидает выхода игроков." "(Telegram pending notice)" || return 1
+  assert_contains "$(cat /tmp/minecraft-stub-telegram.log)" \
+    "Начал деплой обновления Minecraft." "(Telegram deployment-start notice)" || return 1
+  assert_contains "$(cat /tmp/minecraft-stub-telegram.log)" \
+    "Деплой прошёл успешно. Сервер снова доступен — жду игроков!" "(Telegram success notice)" || return 1
 
   # A failed player announcement must not stop the deployment controller.
   : >/tmp/minecraft-stub-fail-say

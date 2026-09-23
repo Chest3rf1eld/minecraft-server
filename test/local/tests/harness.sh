@@ -23,6 +23,9 @@ reset_environment() {
   # exactly the confusing "verify_release saw it as up, but is-active
   # right after says it's not" failure this fixes.
   systemctl stop minecraft.service 2>/dev/null || true
+  systemctl stop minecraft-deploy.service 2>/dev/null || true
+  systemctl stop minecraft-deploy-force.service 2>/dev/null || true
+  systemctl stop minecraft-deploy.timer 2>/dev/null || true
   # /srv/minecraft itself is a tmpfs mount point (see docker-compose.yml),
   # so it can be emptied but not removed and recreated.
   find /srv/minecraft -mindepth 1 -delete 2>/dev/null || true
@@ -30,7 +33,12 @@ reset_environment() {
   printf 'motd=fixture\n' >/srv/minecraft/current/server.properties
   rm -f /tmp/minecraft-stub.pid /tmp/minecraft-stub.log
   printf '0\n' >/tmp/minecraft-stub-online
-  rm -f /tmp/minecraft-stub-rcon.log /tmp/minecraft-stub-fail-say
+  rm -f /tmp/minecraft-stub-rcon.log /tmp/minecraft-stub-telegram.log /tmp/minecraft-stub-fail-say
+  rm -f /tmp/minecraft-deploy-timer.state /tmp/minecraft-deploy.state
+  rm -f /tmp/minecraft-deploy-force.state /tmp/minecraft-deploy.pid
+  rm -f /tmp/minecraft-deploy-force.pid /tmp/minecraft-deploy.log
+  rm -f /tmp/minecraft-deploy-force.log /tmp/restic-hold /tmp/restic-release
+  rm -f /srv/minecraft/state/deploy-supersede-request
 }
 
 # Runs prepare-release.sh for real (curl is shimmed, so the paper.jar/plugin

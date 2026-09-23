@@ -30,7 +30,10 @@ RUN groupadd --system minecraft \
 COPY test/local/bin/ /opt/test/shim/
 COPY test/local/stub/ /opt/test/stub/
 COPY scripts/ /opt/minecraft/bin/
-RUN chmod +x /opt/test/shim/* /opt/minecraft/bin/*.sh /opt/minecraft/bin/*.py
+COPY scripts/ /opt/test/repo/scripts/
+COPY systemd/ /opt/test/repo/systemd/
+RUN chmod +x /opt/test/shim/* /opt/minecraft/bin/*.sh /opt/minecraft/bin/*.py \
+    /opt/test/repo/scripts/*.sh /opt/test/repo/scripts/*.py
 
 # prepare-release.sh reads minecraft/ config and assets relative to $PWD (not an
 # env-overridable path), the same way the real deploy.yml workflow cds into the

@@ -12,15 +12,114 @@ STUB_SCRIPT=${MINECRAFT_STUB_SCRIPT:-/opt/test/stub/minecraft_stub.py}
 STUB_PORT=${STUB_PORT:-25565}
 
 quiet=false
+no_block=false
 subcommand=""
 service=""
 for arg in "$@"; do
   case "$arg" in
     --quiet) quiet=true ;;
-    *.service) service="$arg" ;;
+    --no-block) no_block=true ;;
+    -p|--value|ActiveState) ;;
+    *.service|*.timer) service="$arg" ;;
     *) [[ -z "$subcommand" ]] && subcommand="$arg" ;;
   esac
 done
+
+if [[ "$subcommand" == "daemon-reload" ]]; then
+  exit 0
+fi
+
+if [[ "$service" == "minecraft-deploy.timer" ]]; then
+  timer_state_file=${MINECRAFT_DEPLOY_TIMER_STATE_FILE:-/tmp/minecraft-deploy-timer.state}
+  case "$subcommand" in
+    is-active|show)
+      if [[ -f "$timer_state_file" ]] && [[ "$(cat "$timer_state_file")" == "active" ]]; then
+        state=active
+        status=0
+      else
+        state=inactive
+        status=3
+      fi
+      if [[ "$subcommand" == "show" || "$quiet" != "true" ]]; then
+        echo "$state"
+      fi
+      exit "$status"
+      ;;
+    start)
+      printf 'active\n' >"$timer_state_file"
+      exit 0
+      ;;
+    stop)
+      printf 'inactive\n' >"$timer_state_file"
+      exit 0
+      ;;
+  esac
+fi
+
+if [[ "$service" == "minecraft-deploy.service" || "$service" == "minecraft-deploy-force.service" ]]; then
+  service_slug=${service%.service}
+  service_state_file=${MINECRAFT_DEPLOY_SERVICE_STATE_FILE:-/tmp/${service_slug}.state}
+  service_pid_file=${MINECRAFT_DEPLOY_SERVICE_PID_FILE:-/tmp/${service_slug}.pid}
+  service_log_file=${MINECRAFT_DEPLOY_SERVICE_LOG_FILE:-/tmp/${service_slug}.log}
+  case "$subcommand" in
+    show|is-active)
+      service_state=$(cat "$service_state_file" 2>/dev/null || echo inactive)
+      if [[ "$subcommand" == "show" ]]; then
+        echo "$service_state"
+        exit 0
+      fi
+      case "$service_state" in
+        active|activating|reloading)
+          "$quiet" || echo "$service_state"
+          exit 0
+          ;;
+        *)
+          "$quiet" || echo "$service_state"
+          exit 3
+          ;;
+      esac
+      ;;
+    start)
+      service_state=$(cat "$service_state_file" 2>/dev/null || echo inactive)
+      case "$service_state" in
+        active|activating|reloading) exit 0 ;;
+      esac
+      printf 'activating\n' >"$service_state_file"
+      (
+        set +e
+        if [[ "$service" == "minecraft-deploy-force.service" ]]; then
+          FORCE_DEPLOY=true "$MINECRAFT_BIN_DIR/deploy.sh"
+        else
+          "$MINECRAFT_BIN_DIR/deploy.sh"
+        fi
+        result=$?
+        if [[ "$result" -eq 0 ]]; then
+          printf 'inactive\n' >"$service_state_file"
+        else
+          printf 'failed\n' >"$service_state_file"
+        fi
+        exit "$result"
+      ) >"$service_log_file" 2>&1 &
+      service_pid=$!
+      printf '%s\n' "$service_pid" >"$service_pid_file"
+      if [[ "$no_block" == "true" ]]; then
+        exit 0
+      fi
+      wait "$service_pid"
+      ;;
+    status)
+      printf '%s\n' "$(cat "$service_state_file" 2>/dev/null || echo inactive)"
+      ;;
+    stop)
+      if [[ -f "$service_pid_file" ]]; then
+        service_pid=$(cat "$service_pid_file")
+        kill "$service_pid" 2>/dev/null || true
+      fi
+      printf 'inactive\n' >"$service_state_file"
+      ;;
+  esac
+  exit 0
+fi
 
 if [[ "$service" != "minecraft.service" ]]; then
   echo "systemctl shim: only minecraft.service is supported (got: '${service}')" >&2

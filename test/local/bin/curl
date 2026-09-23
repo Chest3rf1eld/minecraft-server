@@ -17,6 +17,13 @@ if [[ "${CURL_SHIM_FAIL:-}" == "1" ]]; then
   exit 22
 fi
 
+for arg in "$@"; do
+  if [[ "$arg" == *"/sendMessage" ]]; then
+    printf '%s\n' "$*" >>/tmp/minecraft-stub-telegram.log
+    break
+  fi
+done
+
 output_file=""
 prev=""
 for arg in "$@"; do

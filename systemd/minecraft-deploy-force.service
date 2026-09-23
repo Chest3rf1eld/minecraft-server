@@ -1,0 +1,8 @@
+[Unit]
+Description=Force Minecraft deployment controller
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=FORCE_DEPLOY=true
+ExecStart=/opt/minecraft/bin/deploy.sh
