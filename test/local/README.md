@@ -8,7 +8,7 @@ implementation issue: #11.
 ## What this replaces, and what it doesn't
 
 - **Real:** the scripts themselves, restic, rclone, flock-based locking,
-  a local minio container standing in for Yandex Disk.
+  and a local RustFS S3-compatible container standing in for Yandex Disk.
 - **Faked:** there is no real Paper JVM. `systemctl` and `curl` are shimmed
   (`bin/`) so `is-active`/`start`/`stop` control a lightweight TCP+RCON
   stub (`stub/minecraft_stub.py`) instead of a real server process, and
@@ -80,10 +80,10 @@ command above assumes `.env` exists; omit `--env-file .env` to use fallback
 values when it does not.
 
 Exit code is 0 if every test script passed, non-zero otherwise. Everything
-is ephemeral (`tmpfs` for `/srv/minecraft` and minio's data dir): each run
+is ephemeral (`tmpfs` for `/srv/minecraft` and RustFS's data dir): each run
 starts from a clean slate, and nothing survives `docker compose down`.
 
-To re-run a single test script after a change without rebuilding minio:
+To re-run a single test script after a change without rebuilding RustFS:
 
 ```bash
 bash test/local/run-fast.sh /opt/test/tests/test-config-healing.sh
@@ -91,11 +91,11 @@ bash test/local/run-fast.sh /opt/test/tests/test-config-healing.sh
 
 `run-fast.sh` and `run-all.sh` stop the Compose stack after testing, including
 when a test fails or is interrupted. Direct `docker compose` commands can leave
-dependency containers such as MinIO running after the test runner exits.
+dependency containers such as RustFS running after the test runner exits.
 
 ## Layout
 
-- `Dockerfile` / `docker-compose.yml` -- the test container + minio.
+- `Dockerfile` / `docker-compose.yml` -- the test container + RustFS S3 storage.
 - `PaperSmoke.Dockerfile` / `run-paper-plugin-smoke.sh` -- real Paper and all
   configured plugin startup integration check.
 - `run-all.sh` -- runs both test layers and tears down the Compose stack.
@@ -103,7 +103,8 @@ dependency containers such as MinIO running after the test runner exits.
   `sysctl`), placed ahead of the real ones in `PATH`.
 - `stub/minecraft_stub.py` -- status-ping + RCON stub the shimmed
   `systemctl start/stop` controls.
-- `fixtures/` -- `rclone.conf` pointed at the local minio, and throwaway
+- `fixtures/` -- `rclone.conf` points the legacy `minio` remote at local RustFS,
+  plus throwaway
   restic/Telegram/Healthchecks "secrets" (their content doesn't matter;
   `curl` is shimmed, so nothing real ever reads them over the network).
 - `tests/harness.sh` -- shared setup (`reset_environment`,

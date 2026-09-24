@@ -508,7 +508,7 @@ Local testing infrastructure allows validating infrastructure scripts (`deploy.s
 | Test Category | In Scope | Out of Scope |
 |---------------|----------|--------------|
 | Full deploy cycle | Player-aware wait, pre-deploy backup, release switch, health check, rollback (against a stub) | Actual Minecraft gameplay |
-| Backup/restore | restic + rclone to local S3-compatible storage (minio) | Real Yandex Disk |
+| Backup/restore | restic + rclone to local S3-compatible storage (RustFS) | Real Yandex Disk |
 | Mocked operational integration | Deploy lifecycle, backup/restore, locking, notifications, config healing, and artifact download behavior | Production VPS and production credentials |
 | Paper/plugin startup | Start pinned Paper with every configured production plugin and verify each enables | Gameplay, production databases, external plugin authentication/services |
 | Ansible provisioning | Not covered locally | Use real VPS for provisioning validation |
@@ -519,7 +519,7 @@ Local testing infrastructure allows validating infrastructure scripts (`deploy.s
 - **Fast test container:** Debian-based image WITHOUT systemd.
 - **Systemctl shim:** A wrapper script that emulates systemctl behavior against the lightweight Minecraft protocol stub.
 - **Paper/plugin smoke container:** Java runtime that downloads artifacts from pinned metadata and starts real Paper directly; it does not emulate systemd or deploy/rollback.
-- **Storage:** Ephemeral minio container (clean slate per test run, no persistence between runs).
+- **Storage:** Ephemeral RustFS S3-compatible container (clean slate per test run, no persistence between runs).
 - **Scripts:** Run unmodified; no code changes to production scripts for testability.
 
 #### 12.5.3 Systemctl Shim
@@ -571,7 +571,7 @@ compatibility, and startup regressions, but is not a gameplay test.
 ```text
 Developer changes script/config/plugin metadata
   -> runs `bash test/local/run-all.sh`
-  -> minio starts (ephemeral)
+  -> RustFS starts (ephemeral S3-compatible storage)
   -> mocked integration scenarios run with systemctl shim
   -> test scenarios execute (deploy, backup, restore, rollback)
   -> assertions verify state transitions, file placement, lock behavior
@@ -587,8 +587,8 @@ several minutes on a cold cache.
 #### 12.5.8 Success Criteria
 
 - [ ] deploy.sh completes full cycle with stub server and shim
-- [ ] backup.sh creates restic snapshot in local minio
-- [ ] restore.sh restores from minio snapshot correctly
+- [ ] backup.sh creates restic snapshot in local RustFS storage
+- [ ] restore.sh restores from a RustFS snapshot correctly
 - [ ] Rollback scenario restores previous release after simulated health failure
 - [ ] Lock contention between deploy and backup is handled correctly
 - [ ] Scripts exit with correct codes on success and failure paths
