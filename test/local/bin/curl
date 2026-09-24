@@ -35,5 +35,16 @@ done
 
 if [[ -n "$output_file" ]]; then
   mkdir -p "$(dirname "$output_file")"
+  if [[ "$output_file" == *"discordsrv-"*.jar ]]; then
+    python3 - "$output_file" <<'PY'
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1], "w") as jar:
+    jar.writestr("config.yml", 'BotToken: "BOTTOKEN"\nChannels: {}\n')
+    jar.writestr("voice.yml", "Voice enabled: false\nVoice category:\nLobby channel:\n")
+PY
+    exit 0
+  fi
   printf 'fake download (test stub, not a real jar)\n' >"$output_file"
 fi

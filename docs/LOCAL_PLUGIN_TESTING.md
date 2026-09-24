@@ -145,7 +145,7 @@ container (`docker compose ... up --build`, or removing the container)
 starts a fresh one and re-applies it. It's local-only, like everything else
 in this directory: nothing here is copied into a production release.
 
-## Open question before this goes to production
+## Production configuration
 
 Unlike SoundWave (previous candidate, see issue #20 history), DiscordSRV
 ships ordinary GitHub Releases that `curl` fine, so adding it to
@@ -153,20 +153,25 @@ ships ordinary GitHub Releases that `curl` fine, so adding it to
 any other pinned plugin (`scripts/prepare-release.sh`'s existing
 `download_plugins` step needs no changes).
 
-The bot token secret is already wired up: `DISCORD_BOT_TOKEN`
+DiscordSRV (`1.30.5`) is pinned in `minecraft/versions.yml`. The bot token
+secret is already wired up: `DISCORD_BOT_TOKEN`
 (`docs/SECRETS.md`) is rendered to `/etc/minecraft/secrets/discord_bot_token`
 by `.github/workflows/deploy.yml` the same way `TELEGRAM_BOT_TOKEN` is, and
 `scripts/ensure-discordsrv-config.sh` (wired into `scripts/deploy.sh`'s
 `run_deploy`) forces it into `plugins/DiscordSRV/config.yml`'s `BotToken` on
-every deploy cycle. What's still open:
+every deploy cycle. The same script forces the following into
+`plugins/DiscordSRV/config.yml`/`voice.yml` on every deploy cycle, so a
+plugin update or a hand-edit reverting any of them to their generated
+defaults gets corrected on the next tick. On first install, deploy extracts
+the complete default files from the selected plugin JAR while Minecraft is
+stopped, applies these settings, then starts the server; existing shared
+configs are never replaced:
 
-- A real Discord server for the production bot, with a voice category and
-  lobby channel set up ahead of time -- those IDs go in `voice.yml`, which
-  has no secret-rendering machinery (they aren't secret, just not decided
-  yet). This is the only remaining blocker; the two-person proximity check
-  itself is done (see "Verifying the plugin loaded" above).
-- Actually adding DiscordSRV to `minecraft/versions.yml` -- not done here,
-  pending the production Discord server above. Until it's added there,
-  `scripts/prepare-release.sh` never downloads it and
-  `ensure-discordsrv-config.sh` stays a no-op (its own config file never
-  exists).
+- `BotToken` from `DISCORD_BOT_TOKEN`.
+- `Channels` uses chat channel `1551597801933242418`.
+- `Voice category` uses `1551598654245310494` and `Lobby channel` uses
+  `1551598909024112726`; voice is enabled.
+
+These are the production Discord IDs and match the local test configuration.
+The live local test confirmed bot login, the link command, chat relay, and
+two-player proximity voice behavior (see "Verifying the plugin loaded" above).

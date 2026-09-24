@@ -141,7 +141,7 @@ Install and verify Paper, AuthMeReloaded, whitelist, CoreProtect, and base confi
    - `-Xms2G`
    - `-Xmx3G`
 3. Configure `server.properties`:
-   - `max-players=5`
+   - `max-players=15`
    - `online-mode=false`
    - `white-list=true`
    - `enforce-whitelist=true`

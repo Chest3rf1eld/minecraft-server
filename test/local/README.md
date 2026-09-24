@@ -37,7 +37,7 @@ plugin smoke. It can take several minutes on the first run.
 To run only the fast, offline-friendly suite:
 
 ```bash
-docker compose -f test/local/docker-compose.yml up --build --abort-on-container-exit
+bash test/local/run-fast.sh
 ```
 
 The full test pass downloads the pinned Paper/plugin JARs and verifies that the
@@ -78,11 +78,15 @@ Exit code is 0 if every test script passed, non-zero otherwise. Everything
 is ephemeral (`tmpfs` for `/srv/minecraft` and minio's data dir): each run
 starts from a clean slate, and nothing survives `docker compose down`.
 
-To re-run after a script change without rebuilding minio:
+To re-run a single test script after a change without rebuilding minio:
 
 ```bash
-docker compose -f test/local/docker-compose.yml up --build test-runner
+bash test/local/run-fast.sh /opt/test/tests/test-discordsrv-config.sh
 ```
+
+`run-fast.sh` and `run-all.sh` stop the Compose stack after testing, including
+when a test fails or is interrupted. Direct `docker compose` commands can leave
+dependency containers such as MinIO running after the test runner exits.
 
 ## Layout
 

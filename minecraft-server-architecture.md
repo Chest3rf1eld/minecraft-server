@@ -314,7 +314,7 @@ Performance-related gameplay changes are acceptable only if the current VPS is u
 Configure:
 
 ```properties
-max-players=5
+max-players=15
 ```
 
 ---
