@@ -98,32 +98,30 @@ jobs:
           HEALTHCHECKS_BACKUP_URL: ${{ secrets.HEALTHCHECKS_BACKUP_URL }}
           HEALTHCHECKS_VPS_URL: ${{ secrets.HEALTHCHECKS_VPS_URL }}
           YANDEX_RCLONE_CONFIG: ${{ secrets.YANDEX_RCLONE_CONFIG }}
+          DEPLOY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          tar --exclude='.git' --exclude='.opencode' -czf /tmp/minecraft-infra.tgz .
-          scp -i ~/.ssh/deploy_key /tmp/minecraft-infra.tgz "$VPS_USER@$VPS_HOST:/tmp/minecraft-infra.tgz"
+          archive="/tmp/minecraft-infra-${DEPLOY_REQUEST_ID}.tgz"
+          request_dir="/srv/minecraft/deploy-requests/${DEPLOY_REQUEST_ID}"
+          remote_archive="/tmp/minecraft-infra-${DEPLOY_REQUEST_ID}.tgz"
+          secret_dir=$(mktemp -d)
+          trap 'rm -rf "$secret_dir"' EXIT
+          chmod 0700 "$secret_dir"
+          umask 077
+          printf '%s' "$RCON_PASSWORD" >"$secret_dir/rcon_password"
+          printf '%s' "$MANAGEMENT_SERVER_SECRET" >"$secret_dir/management_server_secret"
+          printf '%s' "$AUTHME_MYSQL_PASSWORD" >"$secret_dir/authme_mysql_password"
+          printf '%s' "$RESTIC_PASSWORD" >"$secret_dir/restic_password"
+          printf '%s' "$TELEGRAM_BOT_TOKEN" >"$secret_dir/telegram_bot_token"
+          printf '%s' "$TELEGRAM_CHAT_ID" >"$secret_dir/telegram_chat_id"
+          printf '%s' "$DISCORD_BOT_TOKEN" >"$secret_dir/discord_bot_token"
+          printf '%s' "$HEALTHCHECKS_BACKUP_URL" >"$secret_dir/healthchecks_backup_url"
+          printf '%s' "$HEALTHCHECKS_VPS_URL" >"$secret_dir/healthchecks_vps_url"
+          printf '%s' "$YANDEX_RCLONE_CONFIG" >"$secret_dir/rclone.conf"
+          tar --exclude='.git' --exclude='.opencode' -czf "$archive" .
+          scp -i ~/.ssh/deploy_key "$archive" "$VPS_USER@$VPS_HOST:$remote_archive"
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo mkdir -p /srv/minecraft/repo && sudo tar -xzf /tmp/minecraft-infra.tgz -C /srv/minecraft/repo && sudo chown -R root:root /srv/minecraft/repo'
+            "sudo mkdir -p '$request_dir' && sudo tar -xzf '$remote_archive' -C '$request_dir' && sudo rm -f '$remote_archive' && sudo chown -R root:root '$request_dir'"
+          tar -czf - -C "$secret_dir" . | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "sudo install -d -m 0700 '$request_dir/.secrets' && sudo tar -xzf - -C '$request_dir/.secrets'"
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo install -d -m 0700 /etc/minecraft/secrets'
-          printf '%s' "$RCON_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/rcon_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/rcon_password'
-          printf '%s' "$MANAGEMENT_SERVER_SECRET" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/management_server_secret >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/management_server_secret'
-          printf '%s' "$AUTHME_MYSQL_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/authme_mysql_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/authme_mysql_password'
-          printf '%s' "$RESTIC_PASSWORD" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/restic_password >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/restic_password'
-          printf '%s' "$TELEGRAM_BOT_TOKEN" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/telegram_bot_token >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_bot_token'
-          printf '%s' "$TELEGRAM_CHAT_ID" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/telegram_chat_id >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/telegram_chat_id'
-          printf '%s' "$DISCORD_BOT_TOKEN" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/discord_bot_token >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/discord_bot_token'
-          printf '%s' "$HEALTHCHECKS_BACKUP_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/healthchecks_backup_url >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/healthchecks_backup_url'
-          printf '%s' "$HEALTHCHECKS_VPS_URL" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/healthchecks_vps_url >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/healthchecks_vps_url'
-          printf '%s' "$YANDEX_RCLONE_CONFIG" | ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo tee /etc/minecraft/secrets/rclone.conf >/dev/null && sudo chmod 0600 /etc/minecraft/secrets/rclone.conf'
-          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            'sudo systemctl stop minecraft-deploy.service || true; sudo cp /srv/minecraft/repo/scripts/*.sh /opt/minecraft/bin/ && sudo cp /srv/minecraft/repo/scripts/*.py /opt/minecraft/bin/ && sudo chmod 0755 /opt/minecraft/bin/* && sudo cp /srv/minecraft/repo/systemd/* /etc/systemd/system/ && sudo systemctl daemon-reload && cd /srv/minecraft/repo && sudo /opt/minecraft/bin/prepare-release.sh && sudo systemctl start --no-block minecraft-deploy.service && for i in $(seq 1 120); do state=$(sudo systemctl show -p ActiveState --value minecraft-deploy.service); depstate=$(sudo cat /srv/minecraft/state/deploy-state 2>/dev/null || true); if [ "$state" = "inactive" ] && [ "$depstate" = "SUCCESS" ]; then sudo systemctl status minecraft-deploy.service --no-pager; exit 0; fi; if [ "$state" = "failed" ]; then sudo journalctl -u minecraft-deploy.service -n 200 --no-pager; exit 1; fi; sleep 5; done; sudo journalctl -u minecraft-deploy.service -n 100 --no-pager; exit 1'
+            "cd '$request_dir' && sudo DEPLOY_REQUEST_CLEANUP_REPO=true DEPLOY_SECRETS_DIR='$request_dir/.secrets' '$request_dir/scripts/deploy-request.sh'"

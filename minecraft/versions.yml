@@ -30,6 +30,12 @@ plugins:
     source: "manual"
     data_dir: "DynamicLights"
     download_url: "https://cdn.modrinth.com/data/F8hNkKfB/versions/rVrFWZ7P/DynamicLights-0.1.1-mc1.21.jar"
+  discordsrv:
+    version: "1.30.5"
+    required: false
+    source: "manual"
+    data_dir: "DiscordSRV"
+    download_url: "https://github.com/DiscordSRV/DiscordSRV/releases/download/v1.30.5/DiscordSRV-Build-1.30.5.jar"
 notes:
   production_gate: "Paper artifact URL was provided by the owner and should be used for smoke tests and release preparation."
   plugin_gate: "Plugin download URLs were resolved from the projects' own release APIs (GitHub for AuthMe, Modrinth for CoreProtect/Chunky/DynamicLights) at the exact pinned versions above; verify before bumping versions."

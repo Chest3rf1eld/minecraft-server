@@ -7,18 +7,18 @@ production release pipeline (`scripts/prepare-release.sh`). Tracking issue:
 
 ## Why this exists, and why it's separate from `test/local`
 
-`test/local` (issue #9/#11) runs the deploy/backup/restore *scripts*
-end-to-end but explicitly fakes Paper itself -- no real JVM, no real plugin
-loading (see `test/local/README.md`, "What this replaces, and what it
-doesn't"). It cannot tell you whether a plugin actually loads.
+`test/local` (issue #9/#11) runs deploy/backup/restore *scripts* against
+isolated service shims, then `run-all.sh` starts real pinned Paper and every
+configured production plugin in a second throwaway container. This startup
+check confirms local compatibility but does not authenticate to Discord or
+exercise live chat/voice behavior.
 
-`test/paper-local` does the opposite: it runs the real Paper jar with the
-real plugin jar, in a throwaway Docker container, so you can watch it start
-up and, if you want, connect a client to it. It does not touch
-`scripts/deploy.sh`, `systemd`, or the production VPS, and it is not part of
-CI (CI's own Paper smoke test in `.github/workflows/ci.yml` starts a bare
-Paper with no plugins, just to confirm the pinned build downloads and
-boots).
+`test/paper-local` adds the live integration layer: it runs Paper and DiscordSRV
+in a throwaway Docker container so you can provide a test bot, connect a client,
+and verify Discord chat and proximity voice. It does not touch `systemd` or the
+production VPS. CI runs `bash test/local/run-all.sh` on pull requests and
+pushes to `main`/`dev`; that job starts every configured plugin without a bot
+token and does not connect to Discord.
 
 ## Requirements
 
@@ -145,7 +145,7 @@ container (`docker compose ... up --build`, or removing the container)
 starts a fresh one and re-applies it. It's local-only, like everything else
 in this directory: nothing here is copied into a production release.
 
-## Open question before this goes to production
+## Production configuration
 
 Unlike SoundWave (previous candidate, see issue #20 history), DiscordSRV
 ships ordinary GitHub Releases that `curl` fine, so adding it to
@@ -153,20 +153,25 @@ ships ordinary GitHub Releases that `curl` fine, so adding it to
 any other pinned plugin (`scripts/prepare-release.sh`'s existing
 `download_plugins` step needs no changes).
 
-The bot token secret is already wired up: `DISCORD_BOT_TOKEN`
+DiscordSRV (`1.30.5`) is pinned in `minecraft/versions.yml`. The bot token
+secret is already wired up: `DISCORD_BOT_TOKEN`
 (`docs/SECRETS.md`) is rendered to `/etc/minecraft/secrets/discord_bot_token`
 by `.github/workflows/deploy.yml` the same way `TELEGRAM_BOT_TOKEN` is, and
 `scripts/ensure-discordsrv-config.sh` (wired into `scripts/deploy.sh`'s
 `run_deploy`) forces it into `plugins/DiscordSRV/config.yml`'s `BotToken` on
-every deploy cycle. What's still open:
+every deploy cycle. The same script forces the following into
+`plugins/DiscordSRV/config.yml`/`voice.yml` on every deploy cycle, so a
+plugin update or a hand-edit reverting any of them to their generated
+defaults gets corrected on the next tick. On first install, deploy extracts
+the complete default files from the selected plugin JAR while Minecraft is
+stopped, applies these settings, then starts the server; existing shared
+configs are never replaced:
 
-- A real Discord server for the production bot, with a voice category and
-  lobby channel set up ahead of time -- those IDs go in `voice.yml`, which
-  has no secret-rendering machinery (they aren't secret, just not decided
-  yet). This is the only remaining blocker; the two-person proximity check
-  itself is done (see "Verifying the plugin loaded" above).
-- Actually adding DiscordSRV to `minecraft/versions.yml` -- not done here,
-  pending the production Discord server above. Until it's added there,
-  `scripts/prepare-release.sh` never downloads it and
-  `ensure-discordsrv-config.sh` stays a no-op (its own config file never
-  exists).
+- `BotToken` from `DISCORD_BOT_TOKEN`.
+- `Channels` uses chat channel `1551597801933242418`.
+- `Voice category` uses `1551598654245310494` and `Lobby channel` uses
+  `1551598909024112726`; voice is enabled.
+
+These are the production Discord IDs and match the local test configuration.
+The live local test confirmed bot login, the link command, chat relay, and
+two-player proximity voice behavior (see "Verifying the plugin loaded" above).

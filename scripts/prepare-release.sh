@@ -40,6 +40,51 @@ print(value)
 PY
 }
 
+download_artifact() {
+  local url=$1 destination=$2 attempt=1 max_attempts=4
+  local temporary_file="${destination}.part.$$" http_status curl_status retryable delay
+  local -a retry_delays=(2 4 8)
+
+  mkdir -p "$(dirname "$destination")"
+  while ((attempt <= max_attempts)); do
+    http_status=""
+    curl_status=0
+    if http_status=$(curl --silent --show-error --location \
+      --connect-timeout 20 --max-time 180 \
+      --output "$temporary_file" --write-out '%{http_code}' "$url"); then
+      curl_status=0
+    else
+      curl_status=$?
+    fi
+    http_status=${http_status:-000}
+
+    if ((curl_status == 0)) && [[ "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+      mv -f "$temporary_file" "$destination"
+      return 0
+    fi
+
+    retryable=false
+    if ((curl_status != 0)); then
+      # Retry transport failures, not local setup/usage/certificate failures.
+      case "$curl_status" in
+        5|6|7|18|28|35|52|55|56) retryable=true ;;
+      esac
+    elif [[ "$http_status" =~ ^(408|429|5[0-9][0-9])$ ]]; then
+      retryable=true
+    fi
+
+    rm -f "$temporary_file"
+    if [[ "$retryable" != true || $attempt -ge $max_attempts ]]; then
+      fail "artifact download failed after ${attempt}/${max_attempts} attempts (curl exit ${curl_status}, HTTP ${http_status}): ${url}"
+    fi
+
+    delay=${retry_delays[$((attempt - 1))]}
+    log "artifact download attempt ${attempt}/${max_attempts} failed (curl exit ${curl_status}, HTTP ${http_status}); retrying in ${delay}s: ${url}"
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+
 list_plugin_keys() {
   python3 - "$VERSION_FILE" <<'PY'
 import sys
@@ -78,7 +123,7 @@ download_plugins() {
     fi
     jar_name="${key}-${version}.jar"
     log "downloading plugin $key ($version)"
-    curl -fsSL "$download_url" -o "$RELEASE_DIR/plugins/$jar_name"
+    download_artifact "$download_url" "$RELEASE_DIR/plugins/$jar_name"
   done < <(list_plugin_keys)
 }
 
@@ -120,11 +165,11 @@ prepare() {
   paper_url=$(read_yaml_value_optional paper.download_url)
   mkdir -p "$RELEASE_DIR/plugins" "$RELEASE_DIR/logs"
   if [[ -n "$paper_url" ]]; then
-    curl -fsSL "$paper_url" -o "$RELEASE_DIR/paper.jar"
+    download_artifact "$paper_url" "$RELEASE_DIR/paper.jar"
   else
-    curl -fsSL \
+    download_artifact \
       "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds/${paper_build}/downloads/paper-${minecraft_version}-${paper_build}.jar" \
-      -o "$RELEASE_DIR/paper.jar"
+      "$RELEASE_DIR/paper.jar"
   fi
   download_plugins
   "$SCRIPT_DIR/render-config.py" \

@@ -8,9 +8,16 @@ source "$SCRIPT_DIR/lib.sh"
 FORCE=${FORCE_DEPLOY:-false}
 GRACE_SECONDS=${DEPLOY_EMPTY_GRACE_SECONDS:-300}
 PENDING_NOTICE_AFTER=${DEPLOY_PENDING_NOTICE_AFTER_SECONDS:-86400}
+PENDING_NOTICE_INTERVAL=${DEPLOY_PENDING_NOTICE_INTERVAL_SECONDS:-900}
+PLAYER_POLL_SECONDS=${DEPLOY_PLAYER_POLL_SECONDS:-60}
+RESTART_COUNTDOWN_SECONDS=${DEPLOY_RESTART_COUNTDOWN_SECONDS:-60}
 
 state_file() {
   printf '%s/deploy-state' "$MINECRAFT_STATE_DIR"
+}
+
+supersede_request_file() {
+  printf '%s/deploy-supersede-request' "$MINECRAFT_STATE_DIR"
 }
 
 set_state() {
@@ -19,9 +26,33 @@ set_state() {
   log "deployment state: $1"
 }
 
+supersede_if_requested() {
+  local current_release
+  [[ -e "$(supersede_request_file)" ]] || return 1
+  current_release=$(cat "$MINECRAFT_STATE_DIR/current-release" 2>/dev/null || true)
+  if [[ -n "$current_release" ]]; then
+    printf '%s\n' "$current_release" >"$MINECRAFT_STATE_DIR/target-release"
+  fi
+  rm -f "$(supersede_request_file)"
+  set_state SUPERSEDED
+  log "pending deployment superseded by a newer request"
+  return 0
+}
+
+notify_players() {
+  local message=$1
+  if ! "$SCRIPT_DIR/rcon-command.py" "say $message" >/dev/null 2>&1; then
+    log "could not send in-game deployment notice via RCON"
+  fi
+  return 0
+}
+
 wait_for_empty_server() {
   if [[ "$FORCE" == "true" ]]; then
     log "force deploy requested; skipping player wait"
+    if systemctl is-active --quiet minecraft.service; then
+      notify_players "Внимание: запущено принудительное обновление. Сервер перезапустится после резервного копирования. Пожалуйста, сохранитесь и выйдите."
+    fi
     return
   fi
   if [[ ! -f "$MINECRAFT_STATE_DIR/current-release" ]] || ! systemctl is-active --quiet minecraft.service; then
@@ -29,28 +60,42 @@ wait_for_empty_server() {
     return
   fi
   set_state WAITING_FOR_EMPTY_SERVER
-  local start now online
+  local start now online last_notice=0 grace_remaining
   start=$(date +%s)
   while true; do
+    if supersede_if_requested; then
+      return 2
+    fi
     online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
+    now=$(date +%s)
+    if [[ "$online" -gt 0 ]] && { [[ "$last_notice" -eq 0 ]] || [[ $((now - last_notice)) -ge "$PENDING_NOTICE_INTERVAL" ]]; }; then
+      notify_players "Скоро будет обновление. Пожалуйста, сохранитесь и выйдите с сервера. Перезапуск начнётся, когда все игроки выйдут."
+      if [[ "$last_notice" -eq 0 ]]; then
+        telegram_alert info "Обновление ожидает выхода игроков. Сервер продолжает работать; деплой начнётся после того, как все выйдут."
+      fi
+      last_notice=$now
+    fi
     if [[ "$online" -eq 0 ]]; then
       set_state EMPTY_GRACE_PERIOD
-      sleep "$GRACE_SECONDS"
+      grace_remaining=$GRACE_SECONDS
+      while [[ "$grace_remaining" -gt 0 ]]; do
+        if supersede_if_requested; then
+          return 2
+        fi
+        sleep 1
+        grace_remaining=$((grace_remaining - 1))
+      done
       online=$("$SCRIPT_DIR/player-count.sh" 127.0.0.1 25565 || echo 999)
       if [[ "$online" -eq 0 ]]; then
         return
       fi
       log "player joined during grace period; returning to wait"
     fi
-    now=$(date +%s)
     if [[ $((now - start)) -gt "$PENDING_NOTICE_AFTER" ]]; then
       telegram_alert warning "deployment has been pending for more than 24 hours"
-      if command -v mcrcon >/dev/null 2>&1; then
-        true
-      fi
       start=$now
     fi
-    sleep 60
+    sleep "$PLAYER_POLL_SECONDS"
   done
 }
 
@@ -165,11 +210,9 @@ run_deploy() {
   # tuned values back on every tick instead of waiting for a player to
   # report they got kicked mid-registration.
   "$SCRIPT_DIR/ensure-authme-config.sh"
-  # Same idempotent self-heal approach: DiscordSRV writes its own config.yml
-  # with a literal "BOTTOKEN" placeholder in BotToken on first run, and a
-  # plugin update or hand-edit could revert it back there, so this renders
-  # the real token in from the DISCORD_BOT_TOKEN secret on every tick
-  # instead of leaving the bot silently offline until someone notices.
+  # Self-heal DiscordSRV's secret token and production chat/voice IDs every
+  # tick. The configs are bootstrapped from the selected plugin jar on first
+  # install below while Minecraft is stopped.
   "$SCRIPT_DIR/ensure-discordsrv-config.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
@@ -181,10 +224,42 @@ run_deploy() {
     return
   fi
   set_state PENDING
-  wait_for_empty_server
+  local wait_status=0
+  wait_for_empty_server || wait_status=$?
+  if [[ "$wait_status" -eq 2 ]]; then
+    return 0
+  elif [[ "$wait_status" -ne 0 ]]; then
+    return "$wait_status"
+  fi
+  # Close the small race between the wait loop returning and BACKUP becoming
+  # visible: a newer request may ask to supersede while the controller still
+  # advertises an empty-server state. Once BACKUP is recorded, requests wait
+  # for this operation rather than interrupting it.
+  if supersede_if_requested; then
+    return 0
+  fi
   set_state BACKUP
   "$SCRIPT_DIR/backup.sh" pre-deploy
   set_state DEPLOYING
+  telegram_alert info "Начал деплой обновления Minecraft."
+  if systemctl is-active --quiet minecraft.service; then
+    if [[ "$RESTART_COUNTDOWN_SECONDS" -gt 0 ]]; then
+      local countdown_unit=секунд
+      case "$((RESTART_COUNTDOWN_SECONDS % 100))" in
+        11|12|13|14) ;;
+        *)
+          case "$((RESTART_COUNTDOWN_SECONDS % 10))" in
+            1) countdown_unit=секунду ;;
+            2|3|4) countdown_unit=секунды ;;
+          esac
+          ;;
+      esac
+      notify_players "Сервер перезапустится через ${RESTART_COUNTDOWN_SECONDS} ${countdown_unit} для обновления. Пожалуйста, сохранитесь и выйдите."
+      sleep "$RESTART_COUNTDOWN_SECONDS"
+    else
+      notify_players "Сервер перезапускается для обновления. Пожалуйста, сохранитесь и выйдите."
+    fi
+  fi
   systemctl stop minecraft.service || true
   # Release preparation is intentionally separate; this controller verifies and switches prepared releases.
   if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
@@ -193,6 +268,10 @@ run_deploy() {
     readlink -f "$MINECRAFT_CURRENT_DIR" | xargs -r basename >"$MINECRAFT_STATE_DIR/previous-release"
     switch_current "$target"
   fi
+  # Seed DiscordSRV's complete embedded defaults and heal its project-specific
+  # settings while the server is stopped, before its first plugin load. This
+  # also avoids editing its persistent config files while players are online.
+  DISCORDSRV_BOOTSTRAP_DEFAULTS=true "$SCRIPT_DIR/ensure-discordsrv-config.sh"
   if verify_release; then
     if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
       # Pruning runs before current-release is written: if it fails (e.g.
@@ -204,10 +283,12 @@ run_deploy() {
       cp "$MINECRAFT_STATE_DIR/target-release" "$MINECRAFT_STATE_DIR/current-release"
     fi
     set_state SUCCESS
-    telegram_alert info "deployment succeeded"
+    notify_players "Обновление установлено. Сервер снова доступен."
+    telegram_alert info "Деплой прошёл успешно. Сервер снова доступен — жду игроков!"
   else
     rollback_release
   fi
+  rm -f "$(supersede_request_file)"
 }
 
 with_global_lock run_deploy

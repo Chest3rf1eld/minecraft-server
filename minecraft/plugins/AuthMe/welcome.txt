@@ -1,3 +1,5 @@
 Welcome {PLAYER} on {SERVER} server
 
 This server uses AuthMeReloaded protection!
+
+Join our Discord: https://discord.gg/64FzXfX68q

@@ -29,10 +29,17 @@ jobs:
           ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
       - name: Force deployment
+        env:
+          DEPLOY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          tar --exclude='.git' --exclude='.opencode' -czf /tmp/minecraft-infra.tgz .
-          scp -i ~/.ssh/deploy_key /tmp/minecraft-infra.tgz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/minecraft-infra.tgz"
-          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'sudo mkdir -p /srv/minecraft/repo && sudo tar -xzf /tmp/minecraft-infra.tgz -C /srv/minecraft/repo && sudo chown -R root:root /srv/minecraft/repo'
-          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'sudo cp /srv/minecraft/repo/scripts/*.sh /opt/minecraft/bin/ && sudo cp /srv/minecraft/repo/scripts/*.py /opt/minecraft/bin/ && sudo chmod 0755 /opt/minecraft/bin/* && sudo cp /srv/minecraft/repo/systemd/* /etc/systemd/system/ && sudo systemctl daemon-reload && cd /srv/minecraft/repo && sudo /opt/minecraft/bin/prepare-release.sh && sudo FORCE_DEPLOY=true /opt/minecraft/bin/deploy.sh'
+          archive="/tmp/minecraft-infra-${DEPLOY_REQUEST_ID}.tgz"
+          request_dir="/srv/minecraft/deploy-requests/${DEPLOY_REQUEST_ID}"
+          remote_archive="/tmp/minecraft-infra-${DEPLOY_REQUEST_ID}.tgz"
+          tar --exclude='.git' --exclude='.opencode' -czf "$archive" .
+          scp -i ~/.ssh/deploy_key "$archive" "$VPS_USER@$VPS_HOST:$remote_archive"
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "sudo mkdir -p '$request_dir' && sudo tar -xzf '$remote_archive' -C '$request_dir' && sudo rm -f '$remote_archive' && sudo chown -R root:root '$request_dir'"
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "cd '$request_dir' && sudo DEPLOY_REQUEST_CLEANUP_REPO=true '$request_dir/scripts/deploy-request.sh' --force"
