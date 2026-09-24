@@ -7,18 +7,18 @@ production release pipeline (`scripts/prepare-release.sh`). Tracking issue:
 
 ## Why this exists, and why it's separate from `test/local`
 
-`test/local` (issue #9/#11) runs the deploy/backup/restore *scripts*
-end-to-end but explicitly fakes Paper itself -- no real JVM, no real plugin
-loading (see `test/local/README.md`, "What this replaces, and what it
-doesn't"). It cannot tell you whether a plugin actually loads.
+`test/local` (issue #9/#11) runs deploy/backup/restore *scripts* against
+isolated service shims, then `run-all.sh` starts real pinned Paper and every
+configured production plugin in a second throwaway container. This startup
+check confirms local compatibility but does not authenticate to Discord or
+exercise live chat/voice behavior.
 
-`test/paper-local` does the opposite: it runs the real Paper jar with the
-real plugin jar, in a throwaway Docker container, so you can watch it start
-up and, if you want, connect a client to it. It does not touch
-`scripts/deploy.sh`, `systemd`, or the production VPS, and it is not part of
-CI (CI's own Paper smoke test in `.github/workflows/ci.yml` starts a bare
-Paper with no plugins, just to confirm the pinned build downloads and
-boots).
+`test/paper-local` adds the live integration layer: it runs Paper and DiscordSRV
+in a throwaway Docker container so you can provide a test bot, connect a client,
+and verify Discord chat and proximity voice. It does not touch `systemd` or the
+production VPS. CI runs `bash test/local/run-all.sh` on pull requests and
+pushes to `main`/`dev`; that job starts every configured plugin without a bot
+token and does not connect to Discord.
 
 ## Requirements
 

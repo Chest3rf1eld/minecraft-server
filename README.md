@@ -19,6 +19,7 @@ The server is live and deployed at `minecraft.nikchester.ru:25565`. The full pip
 
 - `SPEC.md` - implementation contract and requirements.
 - `PLAN.md` - phased implementation plan and exit criteria.
+- `CONTRIBUTING.md` - contributor workflow and local verification commands.
 - `minecraft-server-architecture.md` - detailed architecture rationale and constraints.
 - `docs/OPERATIONS.md` - day-to-day commands and runbooks.
 - `docs/LOCAL_PLUGIN_TESTING.md` - run a real Paper server with a candidate plugin locally, before it's added to production.
@@ -62,4 +63,13 @@ ansible-playbook -i ansible/inventory/production/hosts.example.yml ansible/playb
 ansible-lint ansible/
 ```
 
-The Paper smoke test runs in GitHub Actions and uses a temporary CI server directory only.
+Run the complete integration suite locally with Docker Desktop running:
+
+```bash
+bash test/local/run-all.sh
+```
+
+This runs the fast operational scenarios and starts pinned Paper with every
+configured production plugin in a disposable container. CI runs the same
+command on pull requests and pushes to `main`/`dev`. See `CONTRIBUTING.md` for
+the fast-suite-only command and CI boundaries.

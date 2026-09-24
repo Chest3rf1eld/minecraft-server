@@ -44,7 +44,7 @@ import tempfile
 import zipfile
 
 jar, config_path, voice_path = sys.argv[1:]
-targets = {"config.yml": config_path, "voice.yml": voice_path}
+targets = {"config/en.yml": config_path, "voice/en.yml": voice_path}
 with zipfile.ZipFile(jar) as archive:
     for name, target in targets.items():
         if os.path.exists(target):
@@ -53,7 +53,7 @@ with zipfile.ZipFile(jar) as archive:
             contents = archive.read(name)
         except KeyError:
             raise SystemExit(f"DiscordSRV jar is missing its embedded {name}")
-        fd, temporary = tempfile.mkstemp(prefix=f".{name}.", dir=os.path.dirname(target))
+        fd, temporary = tempfile.mkstemp(prefix=f".{os.path.basename(target)}.", dir=os.path.dirname(target))
         try:
             with os.fdopen(fd, "wb") as output:
                 output.write(contents)

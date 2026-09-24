@@ -63,7 +63,7 @@ Build a one-VPS Minecraft infrastructure managed from a public GitHub repository
 ```text
 Owner changes config
   -> opens PR
-  -> CI validates repository and Paper smoke test
+  -> CI validates repository, infrastructure scenarios, and Paper/plugin startup
   -> merge to main
   -> owner approves GitHub production environment
   -> deployment becomes pending on VPS
@@ -446,14 +446,16 @@ Runbooks must document commands for:
 | Level | Scope | Tooling | Coverage Target |
 |-------|-------|---------|-----------------|
 | Static | YAML, shell, Ansible, repository consistency, secrets. | yamllint or equivalent, shellcheck, ansible-lint, gitleaks. | Required in CI. |
-| Smoke | Paper starts with pinned Java and selected config. | GitHub-hosted Ubuntu runner. | Required in CI. |
+| Mocked integration | Deploy, backup/restore, rollback, lock, notifications, config healing, and artifact-download failure/retry behavior. | `test/local/run-fast.sh` with isolated Docker services and command shims. | Required in CI. |
+| Paper/plugin startup | Pinned Paper starts and enables every plugin artifact configured in `minecraft/versions.yml`. | `test/local/run-paper-plugin-smoke.sh` in Docker. | Required in CI; no production secrets or external service login. |
 | Integration | Ansible applies to VPS, systemd starts services, backups execute. | Ansible, shell scripts. | Required before v1 complete. |
 | Operational | Deploy, rollback, backup, full restore, alerts. | Manual or workflow-driven tests. | Required before v1 complete. |
 
 ### 11.2 Test Data Strategy
 
-- CI Paper smoke tests use temporary runner directories only.
+- CI integration tests use disposable containers and temporary directories only.
 - Production world data is never used in CI.
+- Plugin startup validation does not authenticate DiscordSRV to Discord or call production APIs.
 - Restore tests should use a controlled backup snapshot or fresh test state where possible.
 
 ### 11.3 Acceptance Criteria
@@ -487,14 +489,15 @@ The project is v1 complete only when all acceptance criteria from `minecraft-ser
 | Ansible syntax | ansible | `ansible-playbook --syntax-check ...` |
 | Ansible lint | ansible-lint | Defined in CI |
 | Secret scan | gitleaks or GitHub secret scanning | Defined in CI |
-| Paper smoke | Custom workflow/script | Defined in CI |
+| Complete integration suite | Docker Compose harness | `bash test/local/run-all.sh` |
+| Fast mocked scenarios | Docker Compose harness | `bash test/local/run-fast.sh` |
 
 ### 12.4 Verification Patterns
 
 - API verification: not applicable except external HTTPS calls to GitHub, Healthchecks.io, Telegram, PaperMC, and plugin sources.
 - UI verification: GitHub workflow state, Telegram messages, and in-game messages.
 - DB verification: SQLite inspection for CoreProtect/AuthMe only when operationally necessary.
-- CI checks: lint, secret scan, repository consistency, and Paper smoke test.
+- CI checks: lint, secret scan, repository consistency, mocked infrastructure scenarios, and Paper/plugin startup.
 
 ### 12.5 Local Testing Infrastructure
 
@@ -506,8 +509,8 @@ Local testing infrastructure allows validating infrastructure scripts (`deploy.s
 |---------------|----------|--------------|
 | Full deploy cycle | Player-aware wait, pre-deploy backup, release switch, health check, rollback (against a stub) | Actual Minecraft gameplay |
 | Backup/restore | restic + rclone to local S3-compatible storage (minio) | Real Yandex Disk |
-| Unit tests | Script logic: flock, config parsing, error handling, state transitions | Full integration with production services |
-| Paper/plugin smoke | Start the pinned real Paper artifact with pinned plugin JARs and verify required plugins enable | Gameplay, production databases, external plugin services |
+| Mocked operational integration | Deploy lifecycle, backup/restore, locking, notifications, config healing, and artifact download behavior | Production VPS and production credentials |
+| Paper/plugin startup | Start pinned Paper with every configured production plugin and verify each enables | Gameplay, production databases, external plugin authentication/services |
 | Ansible provisioning | Not covered locally | Use real VPS for provisioning validation |
 
 #### 12.5.2 Environment
@@ -515,7 +518,7 @@ Local testing infrastructure allows validating infrastructure scripts (`deploy.s
 - **Platform:** Docker Desktop on Windows (WSL2 backend).
 - **Fast test container:** Debian-based image WITHOUT systemd.
 - **Systemctl shim:** A wrapper script that emulates systemctl behavior against the lightweight Minecraft protocol stub.
-- **Optional plugin smoke container:** Java runtime that downloads artifacts from the pinned metadata and starts real Paper directly; it does not emulate systemd or deploy/rollback.
+- **Paper/plugin smoke container:** Java runtime that downloads artifacts from pinned metadata and starts real Paper directly; it does not emulate systemd or deploy/rollback.
 - **Storage:** Ephemeral minio container (clean slate per test run, no persistence between runs).
 - **Scripts:** Run unmodified; no code changes to production scripts for testability.
 
@@ -546,32 +549,40 @@ The fast deploy/backup tests do not use the real Paper JVM. Instead:
 - **Purpose:** Allows health check scripts to verify "server is up" without JVM overhead.
 - **RCON stub:** Optional; responds to basic RCON commands (`list`, `save-all`, `stop`) if needed for script testing.
 
-An additional `plugins` Compose profile runs the real pinned Paper JAR and
-downloads each pinned plugin JAR from `minecraft/versions.yml`. It waits for
-Paper startup and checks that AuthMe, CoreProtect, Chunky, and DynamicLights
-were enabled. This catches artifact/API/startup incompatibilities, but is not a
-gameplay test and does not connect to production databases or external services.
+The `plugins` Compose profile runs the real pinned Paper JAR and downloads each
+configured plugin JAR from `minecraft/versions.yml`. It discovers each plugin
+name from the JAR's `paper-plugin.yml` or `plugin.yml`, waits for Paper startup,
+and checks that every configured artifact was enabled, including optional
+plugins such as DiscordSRV. The smoke seeds DiscordSRV defaults but leaves its
+bot token blank: it proves local plugin startup without authenticating to
+Discord or calling any external plugin service. This catches artifact,
+compatibility, and startup regressions, but is not a gameplay test.
 
 #### 12.5.6 CI Integration
 
-- **Local only:** These tests run on the developer's machine, not in GitHub Actions.
-- **Rationale:** Avoids Docker-in-Docker complexity; CI remains lightweight (lint + paper-smoke).
-- **Final validation:** Production VPS remains the definitive test before release.
+- **Required CI job:** GitHub Actions runs `bash test/local/run-all.sh` on every pull request and every push to `main` or `dev`, after static validation and secret scanning.
+- **Merge gate:** The integration job must be configured as a required status check in GitHub branch protection/rulesets so a failure blocks pull-request merges.
+- **Failure policy:** Artifact download exhaustion, Paper startup failure, any configured plugin failing to enable, or a mocked scenario failure fails the job; artifacts are not silently skipped.
+- **Isolation:** CI uses only dummy local values and ephemeral containers. It does not use production secrets, live worlds, Discord authentication, or external integration credentials.
+- **Cleanup:** `run-all.sh` tears down its Compose stack on exit, including failed/interrupted test runs.
 
 #### 12.5.7 Test Execution
 
 ```text
-Developer changes script
-  -> runs local test suite (docker compose up)
+Developer changes script/config/plugin metadata
+  -> runs `bash test/local/run-all.sh`
   -> minio starts (ephemeral)
-  -> test container starts with systemctl shim
+  -> mocked integration scenarios run with systemctl shim
   -> test scenarios execute (deploy, backup, restore, rollback)
   -> assertions verify state transitions, file placement, lock behavior
-  -> containers torn down
-  -> fast feedback (target: < 60 seconds for full suite)
-  -> optionally runs `docker compose --profile plugins run --build --rm paper-plugin-smoke`
-  -> pinned Paper and plugin artifacts start in an isolated container
+  -> pinned Paper and every configured plugin start in an isolated container
+  -> logs confirm each plugin was enabled
+  -> containers torn down on success or failure
 ```
+
+Use `bash test/local/run-fast.sh` for faster feedback on mocked scenarios only;
+the complete run including real artifact downloads and Paper startup takes
+several minutes on a cold cache.
 
 #### 12.5.8 Success Criteria
 
@@ -581,7 +592,9 @@ Developer changes script
 - [ ] Rollback scenario restores previous release after simulated health failure
 - [ ] Lock contention between deploy and backup is handled correctly
 - [ ] Scripts exit with correct codes on success and failure paths
-- [ ] Optional plugin smoke starts Paper and verifies all configured plugin JARs enable
+- [ ] Transient Paper/plugin artifact download failures retry with bounded backoff; permanent errors and exhausted retries fail release preparation
+- [ ] Complete integration suite starts Paper and verifies every configured plugin JAR enables without production credentials or external logins
+- [ ] CI runs the complete integration suite for pull requests and pushes to `main`/`dev`; its status is required for merge
 
 ---
 
