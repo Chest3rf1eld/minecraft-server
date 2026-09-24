@@ -1,19 +1,14 @@
 services:
   minio:
-    image: minio/minio:latest
-    command: server /data
+    image: rustfs/rustfs:1.0.0
     environment:
-      MINIO_ROOT_USER: testkey
-      MINIO_ROOT_PASSWORD: testsecret123
-      # backup.sh's default RESTIC_REPOSITORY is rclone:<remote>:minecraft-restic,
-      # where <remote> comes from rclone.conf's section name ("minio" here) --
-      # so the bucket must be named exactly minecraft-restic for the real,
-      # unmodified scripts to find it with no repository override.
-      MINIO_DEFAULT_BUCKETS: minecraft-restic
+      RUSTFS_ACCESS_KEY: testkey
+      RUSTFS_SECRET_KEY: testsecret123
+      RUSTFS_VOLUMES: /data/rustfs0
     tmpfs:
-      - /data
+      - /data:uid=10001,gid=10001,mode=0755
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 2s
       timeout: 2s
       retries: 15
@@ -25,6 +20,10 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    command:
+      - /bin/bash
+      - -c
+      - rclone mkdir minio:minecraft-restic && exec /opt/test/run-tests.sh
     tmpfs:
       - /srv/minecraft
       - /etc/minecraft/secrets

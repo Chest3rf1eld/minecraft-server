@@ -34,6 +34,18 @@ PY
 echo "Preparing release ${release_id} from pinned repository versions..."
 /opt/minecraft/bin/prepare-release.sh "$release_id"
 
+# Bootstrap DiscordSRV's config from the pinned jar, but deliberately remove
+# its token in this isolated smoke: CI proves Paper can enable the plugin and
+# never attempts a real Discord login or requires credentials.
+DISCORDSRV_BOOTSTRAP_DEFAULTS=true \
+DISCORD_BOT_TOKEN_FILE=/nonexistent/ci-discord-bot-token \
+MINECRAFT_CURRENT_DIR="$release_dir" \
+DISCORDSRV_CONFIG="$MINECRAFT_SHARED_DIR/plugins/DiscordSRV/config.yml" \
+DISCORDSRV_VOICE_CONFIG="$MINECRAFT_SHARED_DIR/plugins/DiscordSRV/voice.yml" \
+  /opt/minecraft/bin/ensure-discordsrv-config.sh
+sed -i 's/^BotToken:.*/BotToken: ""/' \
+  "$MINECRAFT_SHARED_DIR/plugins/DiscordSRV/config.yml"
+
 python3 - "$release_dir" <<'PY'
 import os
 import pathlib
@@ -88,12 +100,59 @@ if ! grep -Fq 'Done (' "$log_file"; then
   exit 1
 fi
 
-for plugin in AuthMe CoreProtect Chunky DynamicLights; do
-  if ! grep -Fq "Enabling ${plugin} " "$log_file"; then
-    echo "FAIL: expected plugin ${plugin} was not enabled by Paper. Last log lines (configured secrets redacted):" >&2
-    show_redacted_log_tail >&2
-    exit 1
-  fi
-done
+python3 - "$release_dir" "$log_file" <<'PY'
+import pathlib
+import sys
+import zipfile
 
-echo "PASS: Paper completed startup and enabled AuthMe, CoreProtect, Chunky, and DynamicLights."
+import yaml
+
+release = pathlib.Path(sys.argv[1])
+log = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
+versions = yaml.safe_load(
+    pathlib.Path("/opt/test/repo/minecraft/versions.yml").read_text(encoding="utf-8")
+)
+plugins = versions.get("plugins") or {}
+enabled = []
+failures = []
+
+for key, config in plugins.items():
+    if not config.get("download_url"):
+        continue
+    jar_path = release / "plugins" / f"{key}-{config['version']}.jar"
+    if not jar_path.is_file():
+        failures.append(f"{key}: configured artifact is missing ({jar_path.name})")
+        continue
+    try:
+        with zipfile.ZipFile(jar_path) as jar:
+            metadata_name = next(
+                (name for name in ("paper-plugin.yml", "plugin.yml") if name in jar.namelist()),
+                None,
+            )
+            if metadata_name is None:
+                failures.append(f"{key}: JAR has no Paper plugin metadata")
+                continue
+            metadata = yaml.safe_load(jar.read(metadata_name)) or {}
+    except (OSError, zipfile.BadZipFile, KeyError, yaml.YAMLError) as error:
+        failures.append(f"{key}: invalid plugin JAR metadata ({error})")
+        continue
+
+    name = metadata.get("name")
+    if not name:
+        failures.append(f"{key}: plugin metadata has no name")
+        continue
+    if f"Enabling {name} " not in log:
+        failures.append(f"{key} ({name}): Paper did not enable the configured plugin")
+        continue
+    enabled.append(name)
+
+if failures:
+    print("FAIL: not every configured plugin started:", file=sys.stderr)
+    for failure in failures:
+        print(f" - {failure}", file=sys.stderr)
+    raise SystemExit(1)
+if not enabled:
+    print("FAIL: no configured plugins were checked", file=sys.stderr)
+    raise SystemExit(1)
+print("PASS: Paper completed startup and enabled all configured plugins: " + ", ".join(enabled))
+PY

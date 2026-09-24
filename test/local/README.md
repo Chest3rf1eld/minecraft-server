@@ -8,7 +8,7 @@ implementation issue: #11.
 ## What this replaces, and what it doesn't
 
 - **Real:** the scripts themselves, restic, rclone, flock-based locking,
-  a local minio container standing in for Yandex Disk.
+  and a local RustFS S3-compatible container standing in for Yandex Disk.
 - **Faked:** there is no real Paper JVM. `systemctl` and `curl` are shimmed
   (`bin/`) so `is-active`/`start`/`stop` control a lightweight TCP+RCON
   stub (`stub/minecraft_stub.py`) instead of a real server process, and
@@ -16,33 +16,38 @@ implementation issue: #11.
   network. `fallocate`/`mkswap`/`swapon`/`sysctl` are also no-ops --
   `ensure-swap.sh` does real host-level work that has no place running
   against the Docker host.
-- **Not covered here:** Ansible provisioning, and anything about Paper's
-  own startup behavior (world generation, plugin loading, the EULA
-  check). Those need the real VPS -- see `docs/OPERATIONS.md`.
+- **Not covered by the fast suite:** Ansible provisioning, Paper's real JVM
+  startup behavior, world generation, and plugin loading. The full
+  `run-all.sh` pass covers Paper/plugin startup in a separate disposable
+  container; Ansible provisioning still needs a real VPS (`docs/OPERATIONS.md`).
 
 ## Running it
 
 Requires Docker Desktop running.
 
-Run the complete local test pass, including the real Paper/plugin startup
-smoke:
+Run the complete local test pass, including real Paper and every configured
+production plugin:
 
 ```bash
 bash test/local/run-all.sh
 ```
 
 This runs the fast isolated deploy suite first and then the networked Paper
-plugin smoke. It can take several minutes on the first run.
+plugin startup smoke. It can take several minutes on the first run. The same
+command is required in GitHub Actions for pull requests and pushes to
+`main`/`dev`.
 
 To run only the fast, offline-friendly suite:
 
 ```bash
-docker compose -f test/local/docker-compose.yml up --build --abort-on-container-exit
+bash test/local/run-fast.sh
 ```
 
-The full test pass downloads the pinned Paper/plugin JARs and verifies that the
-real Paper server starts and enables the configured plugins. To run just that
-integration smoke:
+The full test pass downloads the pinned Paper/plugin JARs and verifies that
+Paper starts and enables every configured plugin, including DiscordSRV. The
+smoke bootstraps DiscordSRV's complete defaults, leaves the bot token blank,
+and does not connect to Discord or any production service. To run just the
+Paper/plugin startup stage:
 
 ```bash
 docker compose --env-file .env -f test/local/docker-compose.yml --profile plugins run --build --rm paper-plugin-smoke
@@ -75,33 +80,39 @@ command above assumes `.env` exists; omit `--env-file .env` to use fallback
 values when it does not.
 
 Exit code is 0 if every test script passed, non-zero otherwise. Everything
-is ephemeral (`tmpfs` for `/srv/minecraft` and minio's data dir): each run
+is ephemeral (`tmpfs` for `/srv/minecraft` and RustFS's data dir): each run
 starts from a clean slate, and nothing survives `docker compose down`.
 
-To re-run after a script change without rebuilding minio:
+To re-run a single test script after a change without rebuilding RustFS:
 
 ```bash
-docker compose -f test/local/docker-compose.yml up --build test-runner
+bash test/local/run-fast.sh /opt/test/tests/test-config-healing.sh
 ```
+
+`run-fast.sh` and `run-all.sh` stop the Compose stack after testing, including
+when a test fails or is interrupted. Direct `docker compose` commands can leave
+dependency containers such as RustFS running after the test runner exits.
 
 ## Layout
 
-- `Dockerfile` / `docker-compose.yml` -- the test container + minio.
-- `PaperSmoke.Dockerfile` / `run-paper-plugin-smoke.sh` -- optional real Paper
-  and plugin startup integration check.
+- `Dockerfile` / `docker-compose.yml` -- the test container + RustFS S3 storage.
+- `PaperSmoke.Dockerfile` / `run-paper-plugin-smoke.sh` -- real Paper and all
+  configured plugin startup integration check.
 - `run-all.sh` -- runs both test layers and tears down the Compose stack.
 - `bin/` -- shims (`systemctl`, `curl`, `fallocate`, `mkswap`, `swapon`,
   `sysctl`), placed ahead of the real ones in `PATH`.
 - `stub/minecraft_stub.py` -- status-ping + RCON stub the shimmed
   `systemctl start/stop` controls.
-- `fixtures/` -- `rclone.conf` pointed at the local minio, and throwaway
+- `fixtures/` -- `rclone.conf` points the legacy `minio` remote at local RustFS,
+  plus throwaway
   restic/Telegram/Healthchecks "secrets" (their content doesn't matter;
   `curl` is shimmed, so nothing real ever reads them over the network).
 - `tests/harness.sh` -- shared setup (`reset_environment`,
   `prepare_release`) and assertions, sourced by every `test-*.sh`.
-- `tests/test-*.sh` -- one file per scenario (deploy cycle, backup/restore,
-  rollback, lock contention). `run-tests.sh` runs all of them and reports
-  one pass/fail summary.
+- `tests/test-*.sh` -- scenario-oriented files (deploy cycle, backup/restore,
+  configuration healing, rollback, lock contention). Plugin config-healing
+  assertions live in the shared config-healing scenario, not a plugin-specific
+  test file. `run-tests.sh` runs all scenario files and reports one summary.
 
 ## Adding a scenario
 

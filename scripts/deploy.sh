@@ -210,11 +210,9 @@ run_deploy() {
   # tuned values back on every tick instead of waiting for a player to
   # report they got kicked mid-registration.
   "$SCRIPT_DIR/ensure-authme-config.sh"
-  # Same idempotent self-heal approach: DiscordSRV writes its own config.yml
-  # with a literal "BOTTOKEN" placeholder in BotToken on first run, and a
-  # plugin update or hand-edit could revert it back there, so this renders
-  # the real token in from the DISCORD_BOT_TOKEN secret on every tick
-  # instead of leaving the bot silently offline until someone notices.
+  # Self-heal DiscordSRV's secret token and production chat/voice IDs every
+  # tick. The configs are bootstrapped from the selected plugin jar on first
+  # install below while Minecraft is stopped.
   "$SCRIPT_DIR/ensure-discordsrv-config.sh"
   # minecraft-deploy.timer fires this unconditionally every minute. Without
   # this check, once a target release exists it would re-run a full backup
@@ -270,6 +268,10 @@ run_deploy() {
     readlink -f "$MINECRAFT_CURRENT_DIR" | xargs -r basename >"$MINECRAFT_STATE_DIR/previous-release"
     switch_current "$target"
   fi
+  # Seed DiscordSRV's complete embedded defaults and heal its project-specific
+  # settings while the server is stopped, before its first plugin load. This
+  # also avoids editing its persistent config files while players are online.
+  DISCORDSRV_BOOTSTRAP_DEFAULTS=true "$SCRIPT_DIR/ensure-discordsrv-config.sh"
   if verify_release; then
     if [[ -f "$MINECRAFT_STATE_DIR/target-release" ]]; then
       # Pruning runs before current-release is written: if it fails (e.g.

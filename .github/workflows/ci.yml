@@ -43,69 +43,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  paper-smoke:
+  integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Read versions
-        id: versions
-        run: |
-          python3 -m pip install --user pyyaml
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import yaml
-          data = yaml.safe_load(open('minecraft/versions.yml', encoding='utf-8'))
-          print(f"minecraft={data['minecraft']['version']}")
-          print(f"paper_build={data['paper']['build']}")
-          print(f"paper_url={data['paper'].get('download_url', '')}")
-          print(f"java={data['java']['major']}")
-          PY
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ steps.versions.outputs.java }}
-      - name: Download Paper
-        run: |
-          mkdir -p /tmp/paper-smoke
-          url="${{ steps.versions.outputs.paper_url }}"
-          if [ -z "$url" ]; then
-            url="https://api.papermc.io/v2/projects/paper/versions/${{ steps.versions.outputs.minecraft }}/builds/${{ steps.versions.outputs.paper_build }}/downloads/paper-${{ steps.versions.outputs.minecraft }}-${{ steps.versions.outputs.paper_build }}.jar"
-          fi
-          if ! curl -fsSL "$url" -o /tmp/paper-smoke/paper.jar; then
-            echo "::warning::Paper download endpoint is unavailable. Keep issue #3 open until the Paper API endpoint and pinned build are verified."
-            touch /tmp/paper-smoke/SKIP_SMOKE
-          fi
-      - name: Start Paper smoke server
-        run: |
-          if [ -f /tmp/paper-smoke/SKIP_SMOKE ]; then
-            echo "Skipping Paper smoke startup because Paper artifact download was unavailable."
-            exit 0
-          fi
-          RCON_PASSWORD=ci-smoke-placeholder \
-          MANAGEMENT_SERVER_SECRET=ci-management-placeholder \
-          python3 scripts/render-config.py \
-            --source minecraft/server.properties \
-            --output /tmp/paper-smoke/server.properties
-          sed -i 's/^enable-rcon=.*/enable-rcon=false/' /tmp/paper-smoke/server.properties
-          echo 'eula=true' > /tmp/paper-smoke/eula.txt
-          cd /tmp/paper-smoke
-          java -Xms512M -Xmx1G -jar paper.jar nogui >paper.log 2>&1 &
-          echo $! > paper.pid
-          for i in $(seq 1 90); do
-            if grep -q 'Done' paper.log; then
-              exit 0
-            fi
-            if ! kill -0 "$(cat paper.pid)" 2>/dev/null; then
-              cat paper.log
-              exit 1
-            fi
-            sleep 2
-          done
-          cat paper.log
-          exit 1
-      - name: Stop Paper
-        if: always()
-        run: |
-          if [ -f /tmp/paper-smoke/paper.pid ]; then
-            kill "$(cat /tmp/paper-smoke/paper.pid)" || true
-          fi
+      - name: Run complete integration suite
+        run: bash test/local/run-all.sh

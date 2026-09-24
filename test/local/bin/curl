@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Prevents tests from touching the real internet. The only real curl calls
 # our scripts make are: prepare-release.sh downloading paper.jar/plugins
-# (always with -o), telegram.sh posting an alert, and backup.sh/
+# (always to an output file), telegram.sh posting an alert, and backup.sh/
 # vps-heartbeat.sh pinging Healthchecks.io (both GET, output discarded by
 # the caller). None of our scripts read curl's stdout for a download, only
-# whether it succeeded and, for -o, that the file exists afterward -- so a
+# whether it succeeded and that the file exists afterward -- so a
 # placeholder file and exit 0 satisfies every caller unmodified.
 #
-# Set CURL_SHIM_FAIL=1 to make every call fail instead, for testing the
-# failure paths (backup.sh's ERR trap, prepare-release.sh's required-plugin
-# check, etc).
+# Set CURL_SHIM_FAIL=1 to make every call fail. Artifact download tests can
+# also use CURL_SHIM_FAIL_FIRST_N, CURL_SHIM_FAIL_URL_MATCH,
+# CURL_SHIM_FAILURE_MODE=network, CURL_SHIM_HTTP_STATUS and
+# CURL_SHIM_STATE_FILE to simulate bounded retries and permanent HTTP errors.
 set -euo pipefail
 
 if [[ "${CURL_SHIM_FAIL:-}" == "1" ]]; then
@@ -25,15 +26,58 @@ for arg in "$@"; do
 done
 
 output_file=""
+write_out=""
 prev=""
 for arg in "$@"; do
-  if [[ "$prev" == "-o" ]]; then
+  if [[ "$prev" == "-o" || "$prev" == "--output" ]]; then
     output_file="$arg"
+  elif [[ "$prev" == "-w" || "$prev" == "--write-out" ]]; then
+    write_out="$arg"
   fi
   prev="$arg"
 done
 
+url="${!#}"
+if [[ -n "$write_out" ]]; then
+  attempt=1
+  state_file=${CURL_SHIM_STATE_FILE:-/tmp/curl-shim-attempts}
+  if [[ -n "${CURL_SHIM_FAIL_URL_MATCH:-}" && "$url" == *"${CURL_SHIM_FAIL_URL_MATCH}"* ]]; then
+    attempt=$(cat "$state_file" 2>/dev/null || echo 0)
+    attempt=$((attempt + 1))
+    printf '%s\n' "$attempt" >"$state_file"
+  fi
+
+  if [[ -n "${CURL_SHIM_HTTP_STATUS:-}" && "$url" == *"${CURL_SHIM_FAIL_URL_MATCH:-}"* ]]; then
+    printf '%s' "$CURL_SHIM_HTTP_STATUS"
+    exit 0
+  fi
+  if [[ -n "${CURL_SHIM_FAIL_FIRST_N:-}" && "$url" == *"${CURL_SHIM_FAIL_URL_MATCH:-}"* \
+    && $attempt -le $CURL_SHIM_FAIL_FIRST_N ]]; then
+    if [[ "${CURL_SHIM_FAILURE_MODE:-network}" == "network" ]]; then
+      echo "curl shim: simulated temporary network failure (attempt ${attempt})" >&2
+      exit 7
+    fi
+    printf '503'
+    exit 0
+  fi
+fi
+
 if [[ -n "$output_file" ]]; then
   mkdir -p "$(dirname "$output_file")"
-  printf 'fake download (test stub, not a real jar)\n' >"$output_file"
+  if [[ "$output_file" == *"discordsrv-"*.jar || "$output_file" == *"discordsrv-"*.jar.part.* ]]; then
+    python3 - "$output_file" <<'PY'
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1], "w") as jar:
+    jar.writestr("config/en.yml", 'BotToken: "BOTTOKEN"\nChannels: {}\n')
+    jar.writestr("voice/en.yml", "Voice enabled: false\nVoice category:\nLobby channel:\n")
+PY
+  else
+    printf 'fake download (test stub, not a real jar)\n' >"$output_file"
+  fi
+fi
+
+if [[ "$write_out" == *"%{http_code}"* ]]; then
+  printf '200'
 fi
