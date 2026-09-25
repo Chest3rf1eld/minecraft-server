@@ -6,6 +6,7 @@ Required plugins for v1:
 
 - AuthMeReloaded — its `config.yml` must keep `settings.restrictions.timeout: 60` (players need enough time to type a password twice) and `settings.restrictions.maxRegPerIp: 0` (unlimited registrations per IP, so a second player behind the same household/NAT can still register); `scripts/ensure-authme-config.sh` self-heals both on every deploy cycle since the config file lives in the persistent, uncommitted plugin data directory.
 - CoreProtect
+- Onlysleep — the pinned 1.4.2 build skips the night once 50% of eligible players in that world are sleeping (rounded up). Its settings and Russian player-facing messages are committed under `Onlysleep/`; the shared bStats config opts out of metrics.
 
 Optional administrative plugin:
 
