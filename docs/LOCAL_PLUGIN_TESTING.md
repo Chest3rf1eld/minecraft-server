@@ -13,10 +13,12 @@ configured production plugin in a second throwaway container. This startup
 check confirms local compatibility but does not authenticate to Discord or
 exercise live chat/voice behavior.
 
-`test/paper-local` adds the live integration layer: it runs Paper and DiscordSRV
-in a throwaway Docker container so you can provide a test bot, connect a client,
-and verify Discord chat and proximity voice. It does not touch `systemd` or the
-production VPS. CI runs `bash test/local/run-all.sh` on pull requests and
+`test/paper-local` adds the live integration layer: it runs Paper, AuthMe, and
+DiscordSRV in a throwaway Docker container so you can provide a test bot,
+connect a client, and verify AuthMe messages, Discord chat, and proximity
+voice. The AuthMe welcome text is copied from
+`minecraft/plugins/AuthMe/welcome.txt` into the image. It does not touch
+`systemd` or the production VPS. CI runs `bash test/local/run-all.sh` on pull requests and
 pushes to `main`/`dev`; that job starts every configured plugin without a bot
 token and does not connect to Discord.
 
@@ -31,10 +33,10 @@ token and does not connect to Discord.
 ./test/paper-local/run.sh
 ```
 
-This reads `paper.download_url` and `java.major` out of
-`minecraft/versions.yml` (so the local test always matches the pinned
-production Paper build), downloads the pinned DiscordSRV release jar, and
-starts the server in the foreground with port `25565` published to
+This reads the Paper, Java, and AuthMe download settings out of
+`minecraft/versions.yml` (so the local test uses the pinned production
+artifacts), downloads the pinned DiscordSRV release jar, and starts the server
+in the foreground with port `25565` published to
 `localhost`. Stop it with Ctrl-C; `docker compose -f
 test/paper-local/docker-compose.yml down` cleans up afterward.
 
