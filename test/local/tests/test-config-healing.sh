@@ -17,6 +17,8 @@ write_stock_authme_config() {
   mkdir -p "$(dirname "$AUTHME_CONFIG")"
   cat >"$AUTHME_CONFIG" <<'EOF'
 settings:
+    messagesLanguage: en
+    serverName: Your Minecraft Server
     restrictions:
         allowedNicknameCharacters: '[a-zA-Z0-9_]*'
         timeout: 30
@@ -45,6 +47,10 @@ test_heals_stock_config() {
   # and must be left untouched.
   assert_contains "$(grep -A2 'sessions:' "$AUTHME_CONFIG")" "timeout: 10" \
     "(settings.sessions.timeout must NOT be touched)" || return 1
+  assert_contains "$(grep -A2 '^settings:' "$AUTHME_CONFIG")" "messagesLanguage: ru" \
+    "(AuthMe player messages must use Russian)" || return 1
+  assert_contains "$(grep -A3 '^settings:' "$AUTHME_CONFIG")" "serverName: The Tatarland Rebirth" \
+    "(AuthMe welcome placeholder must use a Russian server name)" || return 1
 }
 
 test_re_heals_after_drift() {
@@ -55,13 +61,17 @@ test_re_heals_after_drift() {
   # A plugin update/reinstall on the VPS can regenerate stock defaults at
   # any time, not just at deploy -- the next unconditional deploy-timer
   # tick (a no-op deploy, no new release pending) must still re-heal it.
-  sed -i 's/timeout: 60/timeout: 30/; s/maxRegPerIp: 0/maxRegPerIp: 1/' "$AUTHME_CONFIG"
+  sed -i 's/timeout: 60/timeout: 30/; s/maxRegPerIp: 0/maxRegPerIp: 1/; s/messagesLanguage: ru/messagesLanguage: en/; s/serverName: The Tatarland Rebirth/serverName: Your Minecraft Server/' "$AUTHME_CONFIG"
   /opt/minecraft/bin/ensure-authme-config.sh || return 1
 
   assert_contains "$(grep -A3 'restrictions:' "$AUTHME_CONFIG")" "timeout: 60" \
     "(drifted settings.restrictions.timeout must be re-healed)" || return 1
   assert_contains "$(grep -A3 'restrictions:' "$AUTHME_CONFIG")" "maxRegPerIp: 0" \
     "(drifted settings.restrictions.maxRegPerIp must be re-healed)" || return 1
+  assert_contains "$(grep -A2 '^settings:' "$AUTHME_CONFIG")" "messagesLanguage: ru" \
+    "(drifted AuthMe language must be re-healed to Russian)" || return 1
+  assert_contains "$(grep -A3 '^settings:' "$AUTHME_CONFIG")" "serverName: The Tatarland Rebirth" \
+    "(drifted AuthMe server name must be re-healed to Russian)" || return 1
 }
 
 test_missing_config_is_a_noop() {
