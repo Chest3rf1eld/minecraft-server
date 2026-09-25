@@ -149,6 +149,27 @@ in this directory: nothing here is copied into a production release.
 
 ## Production configuration
 
+### Onlysleep (issue #48)
+
+Onlysleep 1.4.2 is pinned in `minecraft/versions.yml`; the real Paper/plugin
+smoke test verifies its JAR metadata, that Paper enables it, and that the
+committed 50% per-world threshold, Russian player messages, disabled update
+checks, and bStats opt-out are present in the runtime configuration. A release
+containing the Onlysleep JAR is rejected and rolled back unless Paper's logs
+show that it enabled successfully. Older rollback releases without the JAR
+remain verifiable.
+
+Before closing issue #48, also verify the gameplay behavior on a test server
+with Minecraft clients:
+
+1. With one eligible player online, sleep in a bed and confirm the night is
+   skipped after the configured 3-second delay, with Russian notifications.
+2. With three eligible players in one world, have one player sleep and confirm
+   the night continues and progress shows `1/2`; have a second player sleep
+   and confirm the night is skipped and progress showed `2/2`.
+3. Confirm a player in another world does not change the threshold, and rain
+   or a thunderstorm is cleared after a successful skip.
+
 Unlike SoundWave (previous candidate, see issue #20 history), DiscordSRV
 ships ordinary GitHub Releases that `curl` fine, so adding it to
 `minecraft/versions.yml` for real deployment is mechanically the same as

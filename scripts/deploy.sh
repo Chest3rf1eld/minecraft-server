@@ -130,6 +130,16 @@ verify_release() {
     log "AuthMe load evidence was not found in logs"
     return 1
   fi
+
+  # Older rollback releases may predate Onlysleep. If the current release
+  # carries its pinned JAR, require Paper to have enabled it before accepting
+  # the release; a failed plugin startup must trigger the normal rollback.
+  if compgen -G "$MINECRAFT_CURRENT_DIR/plugins/onlysleep-*.jar" >/dev/null; then
+    if ! grep -Riq 'Enabling Onlysleep ' "$MINECRAFT_CURRENT_DIR/logs" 2>/dev/null; then
+      log "Onlysleep load evidence was not found in logs"
+      return 1
+    fi
+  fi
 }
 
 rollback_release() {

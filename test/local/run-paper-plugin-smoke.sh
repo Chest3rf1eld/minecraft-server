@@ -32,7 +32,8 @@ PY
 }
 
 echo "Preparing release ${release_id} from pinned repository versions..."
-/opt/minecraft/bin/prepare-release.sh "$release_id"
+ARTIFACT_DOWNLOAD_MAX_TIME_SECONDS=${PAPER_ARTIFACT_DOWNLOAD_TIMEOUT_SECONDS:-600} \
+  /opt/minecraft/bin/prepare-release.sh "$release_id"
 
 # Bootstrap DiscordSRV's config from the pinned jar, but deliberately remove
 # its token in this isolated smoke: CI proves Paper can enable the plugin and
@@ -101,6 +102,7 @@ if ! grep -Fq 'Done (' "$log_file"; then
 fi
 
 python3 - "$release_dir" "$log_file" <<'PY'
+import os
 import pathlib
 import sys
 import zipfile
@@ -115,6 +117,29 @@ versions = yaml.safe_load(
 plugins = versions.get("plugins") or {}
 enabled = []
 failures = []
+
+shared = pathlib.Path(os.environ.get("MINECRAFT_SHARED_DIR", "/srv/minecraft/shared"))
+onlysleep_config = yaml.safe_load(
+    (shared / "plugins/Onlysleep/config.yml").read_text(encoding="utf-8")
+)
+onlysleep_messages = yaml.safe_load(
+    (shared / "plugins/Onlysleep/messages.yml").read_text(encoding="utf-8")
+)
+bstats_config = yaml.safe_load(
+    (shared / "plugins/bStats/config.yml").read_text(encoding="utf-8")
+)
+if onlysleep_config.get("sleep-percentage") != 50:
+    failures.append("Onlysleep: expected a 50% sleep threshold")
+if onlysleep_config.get("per-world-sleep") is not True:
+    failures.append("Onlysleep: expected sleep counts to be per-world")
+if onlysleep_config.get("check-for-updates") is not False:
+    failures.append("Onlysleep: automatic update checks must be disabled")
+if onlysleep_messages.get("sleep", {}).get("start-sleep", "").find("лёг спать") < 0:
+    failures.append("Onlysleep: Russian sleep notification was not rendered")
+if onlysleep_messages.get("sleep", {}).get("progress-bar", "").find("Игроки спят") < 0:
+    failures.append("Onlysleep: Russian progress notification was not rendered")
+if bstats_config.get("enabled") is not False:
+    failures.append("bStats: telemetry must be disabled")
 
 for key, config in plugins.items():
     if not config.get("download_url"):
